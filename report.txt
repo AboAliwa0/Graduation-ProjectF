@@ -1,0 +1,10 @@
+=== Vulnerability Scan Report ===
+
+Target: https://www.youtube.com/
+Date & Time: 2026-04-10 21:22:45
+
+Results:
+----------------------------------------
+[-] Path Traversal Not Vulnerable  --> Severity: INFO
+[-] File Upload Not Vulnerable  --> Severity: INFO
+[*] Blind XSS Payload Sent  --> Severity: LOW
