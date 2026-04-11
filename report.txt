@@ -1,16 +1,16 @@
 === Vulnerability Scan Report ===
 
-Target: https://www.youtube.com/
-Date & Time: 2026-04-11 13:57:34
+Target: https://www.youtube.com
+Date & Time: 2026-04-11 15:20:35
 
 Results:
 ----------------------------------------
-[*] Blind XSS Payload Sent  --> Severity: LOW
-[!] Error in File Upload Test  --> Severity: MEDIUM
-[!] Error in vulnerabilities.html_injection: scan() missing 1 required positional argument: 'param'  --> Severity: MEDIUM
-[!] Error in vulnerabilities.idor: scan() missing 1 required positional argument: 'param'  --> Severity: MEDIUM
-[-] Path Traversal Not Vulnerable  --> Severity: INFO
-[]  --> Severity: INFO
-[!] Error in vulnerabilities.sql_injection: scan() missing 1 required positional argument: 'param'  --> Severity: MEDIUM
-[!] Error in vulnerabilities.ssrf: scan() missing 1 required positional argument: 'param'  --> Severity: MEDIUM
-[!] Error in vulnerabilities.xss: scan() missing 1 required positional argument: 'param'  --> Severity: MEDIUM
+vulnerabilities.blind_xss: [*] Blind XSS Payload Sent  --> Severity: LOW
+vulnerabilities.file_upload: [-] File Upload Not Vulnerable  --> Severity: INFO
+vulnerabilities.html_injection: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.idor: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.path_traversal: [-] Path Traversal Not Vulnerable  --> Severity: INFO
+vulnerabilities.rate_limit: [{'type': 'Missing Rate Limiting', 'payload': '20 rapid requests', 'status': 'Potentially Vulnerable', 'risk': 'Medium'}]  --> Severity: INFO
+vulnerabilities.sql_injection: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.ssrf: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.xss: [!] No parameters found  --> Severity: MEDIUM
