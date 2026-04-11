@@ -28,3 +28,12 @@ def generate_report(results, target):
             file.write(f"{result}  --> Severity: {severity}\n")
 
     print("[+] Report saved as report.txt")
+
+
+# 🔥 إضافة support للـ team scripts
+def section(title):
+    return "\n" + "=" * 40 + f"\n[ {title} ]\n" + "=" * 40
+
+
+def vuln(name, status, risk="INFO"):
+    return f"[{status}] {name} --> Severity: {risk}"
