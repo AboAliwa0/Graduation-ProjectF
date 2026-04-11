@@ -30,10 +30,31 @@ def generate_report(results, target):
     print("[+] Report saved as report.txt")
 
 
-# 🔥 إضافة support للـ team scripts
+    # ===== Compatibility Layer =====
+
 def section(title):
     return "\n" + "=" * 40 + f"\n[ {title} ]\n" + "=" * 40
 
 
-def vuln(name, status, risk="INFO"):
+def vuln(name, status="+", risk="HIGH"):
     return f"[{status}] {name} --> Severity: {risk}"
+
+
+def safe(name):
+    return f"[-] {name} --> Severity: INFO"
+
+
+def log(message):
+    print(f"[LOG] {message}")
+
+
+def info(msg):
+    return f"[i] {msg}"
+
+
+def warn(msg):
+    return f"[!] {msg}"
+
+
+def success(msg):
+    return f"[+] {msg}"
