@@ -1,11 +1,12 @@
 import os
 import importlib
 import inspect
+import sys
 
 from report import generate_report, start_report
 from utils.param_extractor import extract_params
 
-# 👇 Scanners بتوعك
+# Scanners
 from vulnerabilities.auth_scanner import check_broken_auth
 from vulnerabilities.ssrf_scanner import check_ssrf_basic
 from vulnerabilities.graphql_scanner import check_graphql_abuse
@@ -33,22 +34,21 @@ def load_scanners():
     return scanners
 
 
-def main():
-    print("=== Advanced Vulnerability Scanner ===\n")
+def run(target):
+    print(f"=== Scanning {target} ===\n")
 
-    target = input("Enter target URL: ")
     start_report(target)
 
     scanners = load_scanners()
     results = []
 
-    print("\n=== Auto Scan Started ===\n")
+    print("=== Auto Scan Started ===\n")
 
-    # 🔥 استخراج parameters
+    # استخراج parameters
     params = extract_params(target)
     print(f"[+] Detected parameters: {params}")
 
-    # 🔵 Scanners بتوع التيم
+    # تشغيل scanners
     for scanner in scanners:
         try:
             signature = inspect.signature(scanner.scan).parameters
@@ -71,45 +71,36 @@ def main():
         print(f"{scanner.__name__} -> {result}")
         results.append(f"{scanner.__name__}: {result}")
 
-    # 🟢 Scanners بتوعك (Manual)
-    print("\n=== Custom Scanners ===\n")
-
+    # تشغيل Scanners إضافية بدون input
     try:
-        login_url = input("Login URL: ")
-        user = input("Username field: ")
-        pwd = input("Password field: ")
-
-        check_broken_auth(login_url, user, pwd)
-        results.append("Broken Authentication: Completed")
-
+        check_broken_auth(target, "username", "password")
+        results.append("Broken Authentication: Checked")
     except:
         results.append("Broken Authentication: Error")
 
     try:
-        ssrf_url = input("\nSSRF Endpoint: ")
-        param = input("Parameter: ")
-
-        check_ssrf_basic(ssrf_url, param)
-        results.append("SSRF: Completed")
-
+        check_ssrf_basic(target, "url")
+        results.append("SSRF: Checked")
     except:
         results.append("SSRF: Error")
 
     try:
-        gql = input("\nGraphQL endpoint: ")
-        check_graphql_abuse(gql)
-        results.append("GraphQL: Completed")
-
+        check_graphql_abuse(target)
+        results.append("GraphQL: Checked")
     except:
         results.append("GraphQL: Error")
 
     print("\n=== Scan Finished ===\n")
 
     generate_report(results, target)
-    generate_pdf("results.txt")
 
-    print("✔ Report + PDF Generated!")
+    return results  # 👈 مهم جدًا
 
 
+# تشغيل من التيرمنال فقط
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        url = sys.argv[1]
+        run(url)
+    else:
+        print("Usage: python main.py <url>")

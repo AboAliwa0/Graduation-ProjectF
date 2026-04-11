@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scanner</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #111;
+      color: #eee;
+      padding: 20px;
+    }
+
+    h2 {
+      color: #00ffcc;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      background: #00ffcc;
+      cursor: pointer;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #333;
+      padding: 10px;
+      text-align: left;
+    }
+
+    th {
+      background: #222;
+    }
+
+    .high { color: red; }
+    .medium { color: orange; }
+    .low { color: lightgreen; }
+
+  </style>
+</head>
+<body>
+
+<h2>⚡ Vulnerability Scanner</h2>
+
+<input type="text" id="url" placeholder="Enter URL">
+<button onclick="scan()">Scan</button>
+
+<div id="loading"></div>
+
+<table id="table" style="display:none;">
+  <thead>
+    <tr>
+      <th>Scanner</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody id="results"></tbody>
+</table>
+
+<script>
+function scan() {
+  let url = document.getElementById("url").value;
+
+  document.getElementById("loading").innerText = "Scanning... ⏳";
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("table").style.display = "none";
+
+  fetch('http://127.0.0.1:5000/scan', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: url})
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("loading").innerText = "";
+    document.getElementById("table").style.display = "table";
+
+    let lines = data.results.split("\n");
+
+    lines.forEach(line => {
+      if (!line.trim()) return;
+
+      let parts = line.split(":");
+      let scanner = parts[0];
+      let result = parts.slice(1).join(":");
+
+      let row = document.createElement("tr");
+
+      let td1 = document.createElement("td");
+      td1.innerText = scanner;
+
+      let td2 = document.createElement("td");
+      td2.innerText = result;
+
+      // coloring
+      if (result.toLowerCase().includes("high")) td2.className = "high";
+      else if (result.toLowerCase().includes("medium")) td2.className = "medium";
+      else td2.className = "low";
+
+      row.appendChild(td1);
+      row.appendChild(td2);
+
+      document.getElementById("results").appendChild(row);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
