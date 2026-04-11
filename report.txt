@@ -1,16 +1,19 @@
 === Vulnerability Scan Report ===
 
-Target: https://www.youtube.com
-Date & Time: 2026-04-11 15:30:11
+Target: 
+Date & Time: 2026-04-11 19:17:26
 
 Results:
 ----------------------------------------
 vulnerabilities.blind_xss: [*] Blind XSS Payload Sent  --> Severity: LOW
-vulnerabilities.file_upload: [-] File Upload Not Vulnerable  --> Severity: INFO
-vulnerabilities.html_injection: [!] No parameters found  --> Severity: MEDIUM
-vulnerabilities.idor: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.file_upload: [!] Error in File Upload Test  --> Severity: MEDIUM
+vulnerabilities.html_injection: No parameters found  --> Severity: INFO
+vulnerabilities.idor: No parameters found  --> Severity: INFO
 vulnerabilities.path_traversal: [-] Path Traversal Not Vulnerable  --> Severity: INFO
-vulnerabilities.rate_limit: [{'type': 'Missing Rate Limiting', 'payload': '20 rapid requests', 'status': 'Potentially Vulnerable', 'risk': 'Medium'}]  --> Severity: INFO
-vulnerabilities.sql_injection: [!] No parameters found  --> Severity: MEDIUM
-vulnerabilities.ssrf: [!] No parameters found  --> Severity: MEDIUM
-vulnerabilities.xss: [!] No parameters found  --> Severity: MEDIUM
+vulnerabilities.rate_limit: []  --> Severity: INFO
+vulnerabilities.sql_injection: No parameters found  --> Severity: INFO
+vulnerabilities.ssrf: No parameters found  --> Severity: INFO
+vulnerabilities.xss: No parameters found  --> Severity: INFO
+Broken Authentication: Completed  --> Severity: INFO
+SSRF: Completed  --> Severity: INFO
+GraphQL: Completed  --> Severity: INFO

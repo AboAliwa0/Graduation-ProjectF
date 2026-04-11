@@ -1,5 +1,11 @@
 from datetime import datetime
 
+def start_report(target):
+    with open("results.txt", "w") as f:
+        f.write("=== Vulnerability Scan Report ===\n")
+        f.write(f"Target: {target}\n")
+        f.write(f"Time: {datetime.now()}\n\n")
+
 def get_severity(result):
     if "[+]" in result:
         return "HIGH"
