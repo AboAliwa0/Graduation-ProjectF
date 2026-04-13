@@ -1,7 +1,7 @@
 === Vulnerability Scan Report ===
 
-Target: https://meet.google.com/zvq-owyp-crf
-Date & Time: 2026-04-11 21:12:48
+Target: https://linkedin.com/in/ibrahim4ahmed
+Date & Time: 2026-04-13 15:31:15
 
 Results:
 ----------------------------------------
@@ -10,7 +10,7 @@ vulnerabilities.file_upload: [-] File Upload Not Vulnerable  --> Severity: INFO
 vulnerabilities.html_injection: No parameters found  --> Severity: INFO
 vulnerabilities.idor: No parameters found  --> Severity: INFO
 vulnerabilities.path_traversal: [-] Path Traversal Not Vulnerable  --> Severity: INFO
-vulnerabilities.rate_limit: [{'type': 'Missing Rate Limiting', 'payload': '20 rapid requests', 'status': 'Potentially Vulnerable', 'risk': 'Medium'}]  --> Severity: INFO
+vulnerabilities.rate_limit: []  --> Severity: INFO
 vulnerabilities.sql_injection: No parameters found  --> Severity: INFO
 vulnerabilities.ssrf: No parameters found  --> Severity: INFO
 vulnerabilities.xss: No parameters found  --> Severity: INFO

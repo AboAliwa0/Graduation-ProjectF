@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #111;
+      color: #eee;
+      padding: 20px;
+    }
+
+    input, button {
+      padding: 8px;
+      margin: 5px;
+    }
+
+    .box {
+      border: 1px solid #333;
+      padding: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+
+</head>
+<body>
+
+<h2>⚡ Vulnerability Scanner</h2>
+
+<a href="/logout">Logout</a>
+
+<form method="POST">
+
+  <input type="text" name="url" placeholder="Target URL" required><br><br>
+
+  <h3>Select Vulnerabilities:</h3>
+
+{% for scanner in scanners %}
+  <label>
+    <input type="checkbox" name="vulns" value="{{ scanner.__name__ }}">
+    {{ scanner.__name__ }}
+  </label><br>
+{% endfor %}
+
+<label>
+  <input type="checkbox" name="all" value="yes"> Scan All
+</label>
+
+
+  <!-- Auth Inputs -->
+  <div id="authBox" class="box">
+    <h4>Auth Inputs</h4>
+    <input type="text" name="username" placeholder="Username Field">
+    <input type="text" name="password" placeholder="Password Field">
+  </div>
+
+  <!-- SSRF Inputs -->
+  <div id="ssrfBox" class="box">
+    <h4>SSRF Inputs</h4>
+    <input type="text" name="param" placeholder="Parameter">
+  </div>
+
+  <br>
+  <button type="submit">Scan</button>
+
+</form>
+
+{% if results %}
+<h3>Results:</h3>
+<ul>
+  {% for r in results %}
+    <li>{{ r }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<script>
+function toggleBox(id) {
+  let box = document.getElementById(id);
+
+  if (box.style.display === "none" || box.style.display === "") {
+    box.style.display = "block";
+  } else {
+    box.style.display = "none";
+  }
+}
+</script>
+
+</body>
+</html>
