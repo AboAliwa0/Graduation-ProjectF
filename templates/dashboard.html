@@ -1,92 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dashboard</title>
-
-  <style>
-    body {
-      font-family: Arial;
-      background: #111;
-      color: #eee;
-      padding: 20px;
-    }
-
-    input, button {
-      padding: 8px;
-      margin: 5px;
-    }
-
-    .box {
-      border: 1px solid #333;
-      padding: 10px;
-      margin-top: 10px;
-      display: none;
-    }
-  </style>
-
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-<h2>⚡ Vulnerability Scanner</h2>
+<div class="dashboard">
 
-<a href="/logout">Logout</a>
+    <!-- Header -->
+    <div class="header">
+        <h1> Vulnerability Scanner</h1>
+        <a href="/logout" class="logout">Logout</a>
+    </div>
 
-<form method="POST">
+    <!-- Scan Box -->
+    <div class="card">
 
-  <input type="text" name="url" placeholder="Target URL" required><br><br>
+        <form method="POST">
 
-  <h3>Select Vulnerabilities:</h3>
+            <div class="input-group">
+                <label>Target URL</label>
+                <input type="text" name="url" placeholder="https://example.com" required>
+            </div>
 
-{% for scanner in scanners %}
-  <label>
-    <input type="checkbox" name="vulns" value="{{ scanner.__name__ }}">
-    {{ scanner.__name__ }}
-  </label><br>
-{% endfor %}
+            <h3 class="section-title">Select Vulnerabilities</h3>
 
-<label>
-  <input type="checkbox" name="all" value="yes"> Scan All
-</label>
+            <div class="checkbox-grid">
 
+                <label><input type="checkbox" name="vuln" value="blind_xss"> Blind XSS</label>
+                <label><input type="checkbox" name="vuln" value="file_upload"> File Upload</label>
+                <label><input type="checkbox" name="vuln" value="html_injection"> HTML Injection</label>
+                <label><input type="checkbox" name="vuln" value="idor"> IDOR</label>
+                <label><input type="checkbox" name="vuln" value="path_traversal"> Path Traversal</label>
+                <label><input type="checkbox" name="vuln" value="rate_limit"> Rate Limit</label>
+                <label><input type="checkbox" name="vuln" value="sql_injection"> SQL Injection</label>
+                <label><input type="checkbox" name="vuln" value="ssrf"> SSRF</label>
+                <label><input type="checkbox" name="vuln" value="xss"> XSS</label>
 
-  <!-- Auth Inputs -->
-  <div id="authBox" class="box">
-    <h4>Auth Inputs</h4>
-    <input type="text" name="username" placeholder="Username Field">
-    <input type="text" name="password" placeholder="Password Field">
-  </div>
+            </div>
 
-  <!-- SSRF Inputs -->
-  <div id="ssrfBox" class="box">
-    <h4>SSRF Inputs</h4>
-    <input type="text" name="param" placeholder="Parameter">
-  </div>
+            <button class="btn scan-btn">Start Scan</button>
 
-  <br>
-  <button type="submit">Scan</button>
+        </form>
 
-</form>
+    </div>
 
-{% if results %}
-<h3>Results:</h3>
-<ul>
-  {% for r in results %}
-    <li>{{ r }}</li>
-  {% endfor %}
-</ul>
-{% endif %}
-
-<script>
-function toggleBox(id) {
-  let box = document.getElementById(id);
-
-  if (box.style.display === "none" || box.style.display === "") {
-    box.style.display = "block";
-  } else {
-    box.style.display = "none";
-  }
-}
-</script>
+</div>
 
 </body>
 </html>
