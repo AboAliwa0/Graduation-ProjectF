@@ -1,194 +1,18 @@
-/* Reset */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Poppins', sans-serif;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberScan - Responsive UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
 
-/* Body */
-body {
-    height: 100vh;
-    background:
-        linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
-        url("../images/loginback1.png") no-repeat center center/cover;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/* Container */
-.container {
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(15px);
-    border-radius: 15px;
-    padding: 40px;
-    width: 350px;
-    text-align: center;
-    box-shadow: 0 0 30px rgba(0, 255, 200, 0.2);
-    border: 1px solid rgba(0, 255, 200, 0.2);
-}
-
-/* Title */
-.container h2 {
-    color: #00ffc8;
-    margin-bottom: 25px;
-}
-
-/* Inputs */
-.input-group {
-    margin-bottom: 20px;
-    text-align: left;
-}
-
-.input-group label {
-    color: #ccc;
-    font-size: 14px;
-}
-
-.input-group input {
-    width: 100%;
-    padding: 10px;
-    margin-top: 5px;
-    border-radius: 8px;
-    border: 1px solid #00ffc8;
-    background: rgba(0,0,0,0.5);
-    color: #fff;
-    outline: none;
-}
-
-.input-group input:focus {
-    box-shadow: 0 0 10px #00ffc8;
-}
-
-/* Button */
-.btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    background: linear-gradient(45deg, #00ffc8, #007cf0);
-    color: #000;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px #00ffc8;
-}
-
-/* Links */
-.link {
-    margin-top: 15px;
-    font-size: 14px;
-    color: #ccc;
-}
-
-.link a {
-    color: #00ffc8;
-    text-decoration: none;
-}
-
-.link a:hover {
-    color: #007cf0;
-}
-
-
-/* Dashboard Layout */
-.dashboard {
-    width: 90%;
-    max-width: 800px;
-}
-
-/* Header */
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.header h1 {
-    color: #00ffc8;
-}
-
-.logout {
-    color: #ff4d4d;
-    text-decoration: none;
-}
-
-/* Card */
-.card {
-    background: rgba(15, 23, 42, 0.9);
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 0 25px rgba(0,255,200,0.2);
-}
-
-/* Checkbox Grid */
-.checkbox-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin: 15px 0;
-}
-
-.checkbox-grid label {
-    color: #ccc;
-    cursor: pointer;
-}
-
-/* Scan Button */
-.scan-btn {
-    margin-top: 10px;
-    font-size: 16px;
-}
-
-.section-title {
-    color: #00ffc8;
-    font-size: 22px;
-    margin: 20px 0 10px;
-    position: relative;
-    display: inline-block;
-}
-
-/* خط تحت العنوان */
-.section-title::after {
-    content: "";
-    width: 60%;
-    height: 2px;
-    background: linear-gradient(90deg, #00ffc8, transparent);
-    position: absolute;
-    bottom: -5px;
-    left: 0;
-}
-
-/* Glow effect */
-.section-title {
-    text-shadow: 0 0 10px #00ffc8;
-}
-.section-title {
-    display: inline-block;
-    padding: 5px 15px;
-    border: 1px solid #00ffc8;
-    border-radius: 8px;
-    color: #00ffc8;
-    background: rgba(0,255,200,0.1);
-    text-shadow: 0 0 8px #00ffc8;
-}
-.section-title {
-    font-family: 'Courier New', monospace;
-    color: #00ffc8;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-shadow: 0 0 8px #00ffc8;
-}
-
-
-/* خاص ب صفحه home */
-
+  
+  <style>
     * {
       margin: 0;
       padding: 0;
@@ -586,4 +410,109 @@ body {
         align-items: flex-start;
       }
     }
-  
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="container">
+      <header class="header">
+        <div class="brand">
+          <div class="brand-icon">CS</div>
+          <div class="brand-text">
+            <h2>CyberScan</h2>
+            <p>Responsive Security Interface</p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <a href="#" class="btn btn-secondary">Login</a>
+          <a href="#" class="btn btn-primary">Register</a>
+        </div>
+      </header>
+
+      <main class="hero">
+        <section class="left-panel">
+          <div class="badge">Security Automation</div>
+
+          <h1 class="hero-title">
+            Scan Smarter.<br />
+            Detect Faster.<br />
+            Secure Better.
+          </h1>
+
+          <p class="hero-desc">
+            Identify critical web vulnerabilities with a modern, focused, and
+            professional interface built for security researchers, penetration
+            testers, and developers who need clarity and speed.
+          </p>
+
+          <div class="hero-actions">
+            <a href="#" class="btn btn-primary">Start Scanning</a>
+            <a href="#" class="btn btn-secondary">Learn More</a>
+          </div>
+
+          <div class="mini-grid">
+            <div class="mini-card">
+              <h4>XSS</h4>
+              <p>Detect reflected and stored cross-site scripting issues.</p>
+            </div>
+            <div class="mini-card">
+              <h4>SQLi</h4>
+              <p>Find SQL injection flaws through automated testing logic.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="right-panel">
+          <article class="feature-card glow-cyan">
+            <div class="feature-head">
+              <div class="feature-icon">S</div>
+              <h3>Scanner</h3>
+            </div>
+            <p>
+              Detect vulnerabilities like XSS, SQL Injection, SSRF, and more
+              with fast automated testing workflows and a cleaner user experience.
+            </p>
+          </article>
+
+          <article class="feature-card glow-pink">
+            <div class="feature-head">
+              <div class="feature-icon">i</div>
+              <h3>About Tool</h3>
+            </div>
+            <p>
+              Built for security testers and developers to identify weaknesses
+              quickly, efficiently, and with better visual organization.
+            </p>
+          </article>
+
+          <article class="feature-card glow-green">
+            <div class="feature-head">
+              <div class="feature-icon">!</div>
+              <h3>Vulnerabilities</h3>
+            </div>
+            <p>
+              Covers XSS, SQL Injection, IDOR, SSRF, File Upload flaws,
+              Path Traversal, authentication issues, and more.
+            </p>
+
+            <div class="tags">
+              <span class="tag">XSS</span>
+              <span class="tag">SQLi</span>
+              <span class="tag">IDOR</span>
+              <span class="tag">SSRF</span>
+              <span class="tag">Upload</span>
+              <span class="tag">Traversal</span>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <div class="footer-strip">
+        <strong>Responsive fix:</strong> تم تعديل الهيكل بحيث مايحصلش قص للعناوين أو الكروت،
+        والصفحة تنزل تحت بعض تلقائيًا على الشاشات الأصغر بدل ما تتزاحم داخل المتصفح.
+      </div>
+    </div>
+  </div>
+</body>
+</html>
