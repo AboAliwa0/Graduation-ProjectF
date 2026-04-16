@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, session
+from flask_bcrypt import Bcrypt
 from database import init_db, connect
 from main import load_scanners
 
 app = Flask(__name__)
 app.secret_key = "secret123"
+bcrypt = Bcrypt(app)
 
 init_db()
 
@@ -19,6 +21,9 @@ def register():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+        
+        # 🛡️ Hash the password before storing it
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
         conn = connect()
         cursor = conn.cursor()
@@ -26,12 +31,12 @@ def register():
         try:
             cursor.execute(
                 "INSERT INTO users (email, password) VALUES (?, ?)",
-                (email, password)
+                (email, hashed_password)
             )
             conn.commit()
-        except:
+        except Exception as e:
             conn.close()
-            return "User already exists"
+            return f"Error: User already exists or database error: {e}"
 
         conn.close()
         return redirect('/login')
@@ -50,16 +55,17 @@ def login():
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT * FROM users WHERE email=? AND password=?",
-            (email, password)
+            "SELECT * FROM users WHERE email=?",
+            (email,)
         )
 
         user = cursor.fetchone()
         conn.close()
 
-        if user:
+        # 🛡️ Verify the hashed password
+        if user and bcrypt.check_password_hash(user[2], password):
             session['user_id'] = user[0]
-            return redirect('/dashboard')  # ✅ مهم
+            return redirect('/dashboard')
         else:
             return "Invalid email or password"
 
@@ -77,7 +83,7 @@ def dashboard():
 
     if request.method == 'POST':
         url = request.form.get("url")
-        selected = request.form.getlist("vuln")  # 👈 خلي بالك من الاسم
+        selected = request.form.getlist("vuln")
 
         for scanner in scanners:
             name = scanner.__name__
