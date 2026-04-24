@@ -1,120 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Scanner</title>
+  <title>CyberScan</title>
+
   <style>
     body {
       font-family: Arial;
-      background: #111;
+      background: #0b0f14;
       color: #eee;
       padding: 20px;
     }
 
-    h2 {
-      color: #00ffcc;
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 40px;
     }
 
-    input, button {
-      padding: 10px;
-      margin: 5px;
-      border-radius: 5px;
-      border: none;
-    }
-
-    button {
+    .btn {
+      padding: 10px 20px;
+      border-radius: 20px;
+      text-decoration: none;
       background: #00ffcc;
-      cursor: pointer;
+      color: black;
+      margin-left: 10px;
     }
 
-    table {
-      width: 100%;
+    .hero {
+      margin-top: 50px;
+    }
+
+    h1 {
+      font-size: 40px;
+    }
+
+    .scan-btn {
+      display: inline-block;
       margin-top: 20px;
-      border-collapse: collapse;
+      padding: 15px 30px;
+      background: #00ffcc;
+      color: black;
+      border-radius: 10px;
+      text-decoration: none;
     }
-
-    th, td {
-      border: 1px solid #333;
-      padding: 10px;
-      text-align: left;
-    }
-
-    th {
-      background: #222;
-    }
-
-    .high { color: red; }
-    .medium { color: orange; }
-    .low { color: lightgreen; }
 
   </style>
 </head>
+
 <body>
 
-<h2>⚡ Vulnerability Scanner</h2>
+<!-- Navbar -->
+<div class="navbar">
+  <h2>⚡ CyberScan</h2>
 
-<input type="text" id="url" placeholder="Enter URL">
-<button onclick="scan()">Scan</button>
+  <div>
+    <a href="/login" class="btn">Login</a>
+    <a href="/register" class="btn">Register</a>
+  </div>
+</div>
 
-<div id="loading"></div>
+<!-- Hero Section -->
+<div class="hero">
+  <h1>Scan Smarter. Detect Faster.</h1>
+  <p>Identify vulnerabilities like XSS, SQL Injection, SSRF and more.</p>
 
-<table id="table" style="display:none;">
-  <thead>
-    <tr>
-      <th>Scanner</th>
-      <th>Result</th>
-    </tr>
-  </thead>
-  <tbody id="results"></tbody>
-</table>
-
-<script>
-function scan() {
-  let url = document.getElementById("url").value;
-
-  document.getElementById("loading").innerText = "Scanning... ⏳";
-  document.getElementById("results").innerHTML = "";
-  document.getElementById("table").style.display = "none";
-
-  fetch('http://127.0.0.1:5000/scan', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url: url})
-  })
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById("loading").innerText = "";
-    document.getElementById("table").style.display = "table";
-
-    let lines = data.results.split("\n");
-
-    lines.forEach(line => {
-      if (!line.trim()) return;
-
-      let parts = line.split(":");
-      let scanner = parts[0];
-      let result = parts.slice(1).join(":");
-
-      let row = document.createElement("tr");
-
-      let td1 = document.createElement("td");
-      td1.innerText = scanner;
-
-      let td2 = document.createElement("td");
-      td2.innerText = result;
-
-      // coloring
-      if (result.toLowerCase().includes("high")) td2.className = "high";
-      else if (result.toLowerCase().includes("medium")) td2.className = "medium";
-      else td2.className = "low";
-
-      row.appendChild(td1);
-      row.appendChild(td2);
-
-      document.getElementById("results").appendChild(row);
-    });
-  });
-}
-</script>
+  <a href="/" class="scan-btn">Start Scanning</a>
+</div>
 
 </body>
 </html>
