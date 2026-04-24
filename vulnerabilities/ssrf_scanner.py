@@ -1,32 +1,66 @@
-from utils import get_session
-from report import section, vuln, safe
+from utils.requester import send_request
 
-def check_ssrf_basic(url, param):
-    section("SSRF")
+# -----------------------
+# 🧠 META
+# -----------------------
 
-    session = get_session()
+meta = {
+    "name": "SSRF",
+    "severity": "High",
+    "description": "Detects Server-Side Request Forgery via external/internal requests"
+}
 
+inputs = ["param"]
+
+
+# -----------------------
+# 🚀 SCAN
+# -----------------------
+
+def scan(url, param):
     payloads = [
         "http://example.com",
-        "http://127.0.0.1"
+        "http://127.0.0.1",
+        "http://localhost",
+        "http://169.254.169.254"  # AWS metadata
     ]
 
-    detected = False
+    findings = []
 
-    for p in payloads:
-        try:
-            full = f"{url}?{param}={p}"
-            r = session.get(full)
+    try:
+        for payload in payloads:
+            test_url = f"{url}?{param}={payload}"
+            response = send_request(test_url)
 
-            print(f"Testing: {p} -> {r.status_code}")
+            # 🔥 detection patterns
+            if any(x in response.lower() for x in [
+                "example domain",
+                "localhost",
+                "meta-data",
+                "root:x"
+            ]):
+                findings.append(payload)
 
-            if "example" in r.text.lower():
-                detected = True
+        # -----------------------
+        # 📊 RESULT
+        # -----------------------
 
-        except:
-            pass
+        if findings:
+            return {
+                "vulnerable": True,
+                "result": f"Possible SSRF detected using: {', '.join(findings)}",
+                "severity": "High"
+            }
 
-    if detected:
-        vuln("Possible SSRF behavior", "MEDIUM")
-    else:
-        safe("No SSRF detected")
+        return {
+            "vulnerable": False,
+            "result": "No SSRF behavior detected",
+            "severity": "Low"
+        }
+
+    except Exception as e:
+        return {
+            "vulnerable": False,
+            "result": f"Error: {str(e)}",
+            "severity": "Low"
+        }

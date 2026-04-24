@@ -1,13 +1,66 @@
 import requests
 
-def scan_directory(url):
-    paths = ["uploads/", "images/", "backup/"]
+# -----------------------
+# 🧠 META
+# -----------------------
 
-    for path in paths:
-        full_url = url + "/" + path
-        res = requests.get(full_url)
+meta = {
+    "name": "Directory Listing",
+    "severity": "Medium",
+    "description": "Detects exposed directories with index listing enabled"
+}
 
-        if "Index of" in res.text:
-            return f"[!] Directory Listing Found: {full_url}"
+inputs = []  # 👈 no inputs needed
 
-    return "[+] No Directory Listing"
+
+# -----------------------
+# 🚀 SCAN
+# -----------------------
+
+def scan(url):
+    common_paths = [
+        "uploads/",
+        "images/",
+        "backup/",
+        "admin/",
+        "files/"
+    ]
+
+    found = []
+
+    try:
+        for path in common_paths:
+            full_url = url.rstrip("/") + "/" + path
+
+            try:
+                res = requests.get(full_url, timeout=5)
+
+                if "index of" in res.text.lower():
+                    found.append(full_url)
+
+            except:
+                continue
+
+        # -----------------------
+        # 📊 RESULT
+        # -----------------------
+
+        if found:
+            return {
+                "vulnerable": True,
+                "result": f"Directory listing enabled: {', '.join(found)}",
+                "severity": "Medium"
+            }
+
+        return {
+            "vulnerable": False,
+            "result": "No directory listing detected",
+            "severity": "Low"
+        }
+
+    except Exception as e:
+        return {
+            "vulnerable": False,
+            "result": f"Error: {str(e)}",
+            "severity": "Low"
+        }

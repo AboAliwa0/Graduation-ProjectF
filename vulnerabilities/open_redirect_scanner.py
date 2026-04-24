@@ -1,41 +1,68 @@
-from utils import get_session, rate_sleep
-from report import section, vuln, safe, log
+import requests
 
-def check_open_redirect(url):
-    section("Open Redirect")
-    session = get_session()
-    vulnerable = False
+# -----------------------
+# 🧠 META
+# -----------------------
 
-    # A list of common redirect parameters and malicious URLs
+meta = {
+    "name": "Open Redirect",
+    "severity": "High",
+    "description": "Detects open redirect vulnerabilities via common parameters"
+}
+
+inputs = []  # 👈 no user input needed
+
+
+# -----------------------
+# 🚀 SCAN
+# -----------------------
+
+def scan(url):
+    session = requests.Session()
+
     redirect_params = [
         "next", "url", "target", "redirect", "redir", "return", "continue",
         "dest", "destination", "path", "uri", "view", "checkout", "return_to"
     ]
+
     malicious_url = "http://evil.com/redirect_test"
+    findings = []
 
-    log(f"[*] Testing for Open Redirect on: {url}")
+    try:
+        for param in redirect_params:
+            test_url = f"{url}?{param}={malicious_url}"
 
-    for param in redirect_params:
-        test_url = f"{url}?{param}={malicious_url}"
-        try:
-            rate_sleep()
-            # Allow redirects to check if it goes to the malicious URL
-            r = session.get(test_url, allow_redirects=True, timeout=10)
+            try:
+                r = session.get(test_url, allow_redirects=True, timeout=10)
 
-            # Check if the final URL after redirection is the malicious one
-            if r.url == malicious_url:
-                vuln(
-                    f"Open Redirect vulnerability detected via parameter \'{param}\'",
-                    "HIGH",
-                    verify_cmd=f"curl -L \"{test_url}\""
-                )
-                vulnerable = True
-                break # Found one, no need to test other parameters
-            else:
-                log(f"[*] Parameter \'{param}\' did not lead to open redirect. Final URL: {r.url}")
+                # 🔥 check final redirect
+                if r.url.startswith(malicious_url):
+                    findings.append(f"Vulnerable via parameter '{param}'")
+                    break
 
-        except Exception as e:
-            log(f"[-] Error testing Open Redirect with parameter \'{param}\' for {url}: {e}")
+            except:
+                continue
 
-    if not vulnerable:
-        safe("Open Redirect protection appears to be in place or no vulnerable parameters found.")
+        # -----------------------
+        # 📊 RESULT
+        # -----------------------
+
+        if findings:
+            return {
+                "vulnerable": True,
+                "result": " | ".join(findings),
+                "severity": "High"
+            }
+
+        return {
+            "vulnerable": False,
+            "result": "No open redirect detected",
+            "severity": "Low"
+        }
+
+    except Exception as e:
+        return {
+            "vulnerable": False,
+            "result": f"Error: {str(e)}",
+            "severity": "Low"
+        }

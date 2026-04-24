@@ -1,75 +1,105 @@
-from utils import get_session, rate_sleep
-from report import section, vuln, safe, log
+import requests
+
+# -----------------------
+# 🧠 META
+# -----------------------
+
+meta = {
+    "name": "Host Header Injection",
+    "severity": "High",
+    "description": "Detects host header injection and poisoning vulnerabilities"
+}
+
+inputs = []  # 👈 no user input needed
 
 
-def check_host_header(url):
-    section("Host Header Injection")
-    session    = get_session()
-    vulnerable = False
-    evil_host  = "evil.com"
+# -----------------------
+# 🚀 SCAN
+# -----------------------
+
+def scan(url):
+    session = requests.Session()
+    evil_host = "evil.com"
 
     test_headers = [
-        {"Host":              evil_host},
-        {"X-Forwarded-Host":  evil_host},
-        {"X-Host":            evil_host},
+        {"Host": evil_host},
+        {"X-Forwarded-Host": evil_host},
+        {"X-Host": evil_host},
         {"X-Forwarded-Server": evil_host},
-        {"Forwarded":         f"for=127.0.0.1;host={evil_host}"},
+        {"Forwarded": f"for=127.0.0.1;host={evil_host}"},
     ]
 
-    # Baseline
+    findings = []
+
     try:
-        rate_sleep()
-        normal   = session.get(url, timeout=10)
+        # 🔹 baseline
+        normal = session.get(url, timeout=10)
         base_len = len(normal.text)
-        log(f"[*] Baseline response length: {base_len}")
+
     except Exception as e:
-        log(f"[!] Error establishing baseline: {e}")
-        return
+        return {
+            "vulnerable": False,
+            "result": f"Baseline request failed: {str(e)}",
+            "severity": "Low"
+        }
 
     for headers in test_headers:
         header_name = list(headers.keys())[0]
+
         try:
-            rate_sleep()
-            r           = session.get(url, headers=headers, timeout=10)
-            current_len = len(r.text)
-            response    = r.text
+            r = session.get(url, headers=headers, timeout=10)
+            response = r.text
+            current_len = len(response)
 
-            log(f"[*] Testing {header_name:25} -> Length: {current_len}")
-
+            # 🔥 reflection
             if evil_host in response:
-                vuln(
-                    f"Host Header reflected in response via [{header_name}]",
-                    "HIGH",
-                    verify_cmd=f'curl -H "{header_name}: {evil_host}" {url}'
-                )
-                vulnerable = True
+                findings.append({
+                    "issue": f"Reflected Host Header via {header_name}",
+                    "severity": "High"
+                })
                 continue
 
+            # 🔥 poisoning
             poisoned = [
                 f"href=\"http://{evil_host}",
                 f"href='http://{evil_host}",
                 f"action=\"http://{evil_host}",
                 f"url=http://{evil_host}",
             ]
+
             if any(p in response for p in poisoned):
-                vuln(
-                    f"Host Header Injection - Poisoned link via [{header_name}]",
-                    "HIGH",
-                    verify_cmd=f'curl -H "{header_name}: {evil_host}" {url}'
-                )
-                vulnerable = True
+                findings.append({
+                    "issue": f"Poisoned response via {header_name}",
+                    "severity": "High"
+                })
                 continue
 
+            # 🔥 response diff
             if abs(current_len - base_len) > 50:
-                vuln(
-                    f"Possible Host Header Injection - Response changed via [{header_name}]",
-                    "MEDIUM",
-                    verify_cmd=f'curl -H "{header_name}: {evil_host}" {url}'
-                )
-                vulnerable = True
+                findings.append({
+                    "issue": f"Response changed via {header_name}",
+                    "severity": "Medium"
+                })
 
-        except Exception as e:
-            log(f"[-] Error testing {header_name}: {e}")
+        except:
+            continue
 
-    if not vulnerable:
-        safe("No Host Header issues detected with common headers")
+    # -----------------------
+    # 📊 RESULT
+    # -----------------------
+
+    if findings:
+        issues = " | ".join([f["issue"] for f in findings])
+        max_severity = max(f["severity"] for f in findings)
+
+        return {
+            "vulnerable": True,
+            "result": issues,
+            "severity": max_severity
+        }
+
+    return {
+        "vulnerable": False,
+        "result": "No Host Header issues detected",
+        "severity": "Low"
+    }

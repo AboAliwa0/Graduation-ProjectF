@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111a">
+    <title>CyberScan | Scan History</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #07111a;
+            --panel: #0f1722;
+            --panel-2: #111a27;
+            --border: rgba(255,255,255,0.08);
+            --text: #eef7ff;
+            --muted: #9eb0c0;
+            --cyan: #00ffc8;
+            --blue: #007cf0;
+            --green: #62ff8f;
+            --yellow: #ffcd4d;
+            --red: #ff6b6b;
+            --shadow: 0 10px 30px rgba(0,0,0,0.28);
+            --radius-xl: 28px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            background:
+                linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)),
+                url("{{ url_for('static', filename='images/loginback1.png') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .container {
+            width: min(1280px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 18px 0 30px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            color: #000;
+            background: linear-gradient(90deg, var(--cyan), var(--blue));
+            box-shadow: 0 0 24px rgba(0,255,200,0.28);
+        }
+
+        .brand-text h2 {
+            font-size: 1.05rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .brand-text p {
+            font-size: 0.84rem;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            cursor: pointer;
+            font-weight: 800;
+            padding: 12px 18px;
+            border-radius: 999px;
+            transition: 0.25s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--cyan), var(--blue));
+            color: #000;
+            box-shadow: 0 0 22px rgba(0, 255, 200, 0.22);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 24px rgba(0,255,200,0.18);
+        }
+
+        .page-title {
+            font-size: clamp(1.7rem, 4vw, 2.4rem);
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: var(--muted);
+            line-height: 1.7;
+            margin-bottom: 18px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: var(--shadow);
+        }
+
+        .stat .label {
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .stat .value {
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+
+        .card {
+            background: rgba(15, 23, 34, 0.88);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            padding: 22px;
+        }
+
+        .scan-block {
+            margin-bottom: 18px;
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .scan-block + .scan-block {
+            margin-top: 16px;
+        }
+
+        .scan-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .scan-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .scan-meta strong {
+            color: var(--text);
+        }
+
+        .status-badge {
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .status-done {
+            color: var(--green);
+            border-color: rgba(98,255,143,0.2);
+        }
+
+        .status-running {
+            color: var(--yellow);
+            border-color: rgba(255,205,77,0.2);
+        }
+
+        .status-failed {
+            color: var(--red);
+            border-color: rgba(255,107,107,0.2);
+        }
+
+        .target-line {
+            word-break: break-all;
+            line-height: 1.6;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: hidden;
+            border-radius: 16px;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--muted);
+            font-size: 0.84rem;
+            font-weight: 800;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .sev-critical { color: #ff4d6d; font-weight: 800; }
+        .sev-high { color: var(--red); font-weight: 800; }
+        .sev-medium { color: var(--yellow); font-weight: 800; }
+        .sev-low { color: var(--green); font-weight: 800; }
+
+        .empty-state {
+            padding: 30px 20px;
+            text-align: center;
+            color: var(--muted);
+            border: 1px dashed rgba(255,255,255,0.12);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            color: var(--muted);
+            border: 1px solid rgba(255,255,255,0.08);
+            line-height: 1.7;
+        }
+
+        .fade-up {
+            opacity: 0;
+            transform: translateY(18px);
+            transition: 0.35s ease;
+        }
+
+        .fade-up.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 1080px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: min(100%, calc(100% - 22px));
+                padding: 14px 0 24px;
+            }
+
+            .header {
+                align-items: stretch;
+            }
+
+            .header-actions {
+                width: 100%;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            .scan-header {
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                min-width: 0;
+            }
+
+            th,
+            td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <div class="header">
+        <div class="brand">
+            <div class="brand-icon">CS</div>
+            <div class="brand-text">
+                <h2>CyberScan</h2>
+                <p>Scan History</p>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
+            <a href="/logout" class="btn btn-primary">Logout</a>
+        </div>
+    </div>
+
+    <div class="page-title">📊 Scan History</div>
+    <div class="page-subtitle">
+        كل scan اتحفظ هنا بالـ target والنتائج والـ severity، ومقسّم لكل user لوحده من خلال الـ backend.
+    </div>
+
+    <div class="summary-grid fade-up">
+        <div class="stat">
+            <div class="label">Total Scans</div>
+            <div class="value">{{ scans|length }}</div>
+        </div>
+        <div class="stat">
+            <div class="label">Latest Target</div>
+            <div class="value">
+                {% if scans and scans[0].target %}
+                    <span class="target-line">{{ scans[0].target }}</span>
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+        <div class="stat">
+            <div class="label">Status</div>
+            <div class="value">
+                {% if scans and scans[0].status %}
+                    {{ scans[0].status|upper }}
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+        <div class="stat">
+            <div class="label">Findings</div>
+            <div class="value">
+                {% set ns = namespace(total=0) %}
+                {% for scan in scans %}
+                    {% set ns.total = ns.total + (scan.results|length) %}
+                {% endfor %}
+                {{ ns.total }}
+            </div>
+        </div>
+    </div>
+
+    <div class="card fade-up">
+        {% if scans %}
+            {% for scan in scans %}
+                <div class="scan-block">
+                    <div class="scan-header">
+                        <div class="scan-meta">
+                            <span>🌐 <strong>Target:</strong> <span class="target-line">{{ scan.target }}</span></span>
+                            <span>📅 <strong>Date:</strong> {{ scan.created_at }}</span>
+                            <span class="status-badge status-{{ scan.status|lower if scan.status else 'done' }}">
+                                {{ scan.status|upper if scan.status else 'DONE' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if scan.results and scan.results|length > 0 %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vulnerability</th>
+                                    <th>Result</th>
+                                    <th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in scan.results %}
+                                <tr>
+                                    <td>{{ r.name }}</td>
+                                    <td>{{ r.result }}</td>
+                                    <td class="sev-{{ r.severity|lower }}">{{ r.severity }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="empty-state">
+                            No findings found for this scan.
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                No scans yet.
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="footer-note fade-up">
+        الصفحة دي بتقرأ البيانات اللي اتخزنت في جدول <code>scans</code> بعد ما الـ backend فكّها JSON ومرّرها للـ template، فمش محتاجة أي filter إضافي.
+    </div>
+
+</div>
+
+<script>
+document.querySelectorAll(".fade-up").forEach((el, index) => {
+    setTimeout(() => el.classList.add("show"), index * 90);
+});
+</script>
+</body>
+</html>

@@ -1,71 +1,95 @@
-from utils import get_session, rate_sleep
-from report import section, vuln, safe, log
+import requests
+
+# -----------------------
+# 🧠 META
+# -----------------------
+
+meta = {
+    "name": "CORS Misconfiguration",
+    "severity": "High",
+    "description": "Detects insecure CORS policies allowing unauthorized cross-origin access"
+}
+
+inputs = []  # 👈 no user input needed
 
 
-def check_cors(url):
-    section("CORS Misconfiguration")
-    session    = get_session()
-    vulnerable = False
+# -----------------------
+# 🚀 SCAN
+# -----------------------
 
-    origins = [
+def scan(url):
+    session = requests.Session()
+
+    findings = []
+
+    test_origins = [
         "http://evil.com",
         "https://evil.com",
-        "null",
+        "null"
     ]
 
-    for origin in origins:
-        try:
-            rate_sleep()
+    try:
+        for origin in test_origins:
             r = session.get(url, headers={"Origin": origin}, timeout=10)
 
             aca_origin = r.headers.get("Access-Control-Allow-Origin", "")
-            aca_creds  = r.headers.get("Access-Control-Allow-Credentials", "").lower()
+            aca_creds = r.headers.get("Access-Control-Allow-Credentials", "").lower()
 
-            log(f"[*] Origin: {origin:25} -> ACA-Origin: {aca_origin}")
-
+            # 🔥 Case 1: wildcard + credentials
             if aca_origin == "*" and aca_creds == "true":
-                vuln(
-                    "CORS allows credentials with wildcard (*)",
-                    "CRITICAL",
-                    verify_cmd=f'curl -H "Origin: {origin}" -I {url}'
-                )
-                vulnerable = True
+                findings.append({
+                    "issue": "Wildcard (*) with credentials allowed",
+                    "severity": "Critical"
+                })
 
+            # 🔥 Case 2: reflected origin
             elif aca_origin == origin:
-                vuln(
-                    f"CORS reflects arbitrary origin ({origin})",
-                    "HIGH",
-                    verify_cmd=f'curl -H "Origin: {origin}" -I {url}'
-                )
-                vulnerable = True
+                findings.append({
+                    "issue": f"Reflects arbitrary origin ({origin})",
+                    "severity": "High"
+                })
 
-        except Exception as e:
-            log(f"[-] Error testing origin '{origin}': {e}")
-
-    # Preflight OPTIONS test
-    try:
-        rate_sleep()
-        preflight_headers = {
-            "Origin":                         "http://evil.com",
-            "Access-Control-Request-Method":  "POST",
-            "Access-Control-Request-Headers": "Authorization",
+        # 🔥 Preflight test
+        headers = {
+            "Origin": "http://evil.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization"
         }
-        r2          = session.options(url, headers=preflight_headers, timeout=10)
-        aca_origin2 = r2.headers.get("Access-Control-Allow-Origin", "")
-        aca_creds2  = r2.headers.get("Access-Control-Allow-Credentials", "").lower()
 
-        log(f"[*] Preflight OPTIONS -> ACA-Origin: {aca_origin2}")
+        r2 = session.options(url, headers=headers, timeout=10)
+
+        aca_origin2 = r2.headers.get("Access-Control-Allow-Origin", "")
+        aca_creds2 = r2.headers.get("Access-Control-Allow-Credentials", "").lower()
 
         if aca_origin2 == "http://evil.com" or (aca_origin2 == "*" and aca_creds2 == "true"):
-            vuln(
-                "CORS Preflight (OPTIONS) is misconfigured",
-                "HIGH",
-                verify_cmd=f'curl -X OPTIONS -H "Origin: http://evil.com" -I {url}'
-            )
-            vulnerable = True
+            findings.append({
+                "issue": "Preflight (OPTIONS) misconfigured",
+                "severity": "High"
+            })
 
     except Exception as e:
-        log(f"[-] Preflight test error: {e}")
+        return {
+            "vulnerable": False,
+            "result": f"Error: {str(e)}",
+            "severity": "Low"
+        }
 
-    if not vulnerable:
-        safe("CORS configuration appears secure")
+    # -----------------------
+    # 📊 RESULT
+    # -----------------------
+
+    if findings:
+        issues = " | ".join([f["issue"] for f in findings])
+        max_severity = max(f["severity"] for f in findings)
+
+        return {
+            "vulnerable": True,
+            "result": issues,
+            "severity": max_severity
+        }
+
+    return {
+        "vulnerable": False,
+        "result": "CORS configuration appears secure",
+        "severity": "Low"
+    }

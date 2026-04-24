@@ -2,34 +2,240 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111a">
+    <title>CyberScan | Login</title>
 
-    <!-- Google Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
- <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #07111a;
+            --panel: rgba(15, 23, 34, 0.92);
+            --border: rgba(255,255,255,0.08);
+            --text: #eef7ff;
+            --muted: #9eb0c0;
+            --cyan: #00ffc8;
+            --blue: #007cf0;
+            --shadow: 0 10px 30px rgba(0,0,0,0.28);
+            --radius-xl: 28px;
+            --radius-lg: 22px;
+        }
+
+        body {
+            font-family: "Inter", sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background:
+                linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)),
+                url("{{ url_for('static', filename='images/loginback1.png') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: min(460px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            padding: 30px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .brand-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            color: #000;
+            background: linear-gradient(90deg, var(--cyan), var(--blue));
+            box-shadow: 0 0 24px rgba(0,255,200,0.28);
+        }
+
+        .brand-text h2 {
+            font-size: 1.1rem;
+            font-weight: 800;
+        }
+
+        .brand-text p {
+            font-size: 0.84rem;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .title {
+            font-size: clamp(1.8rem, 4vw, 2.3rem);
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            line-height: 1.7;
+            margin-bottom: 22px;
+            font-size: 0.95rem;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text);
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 13px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(0,0,0,0.42);
+            color: var(--text);
+            outline: none;
+            transition: 0.25s ease;
+        }
+
+        .input-group input:focus {
+            border-color: rgba(0,255,200,0.45);
+            box-shadow: 0 0 0 3px rgba(0,255,200,0.08);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 13px 16px;
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 0.95rem;
+            transition: 0.25s ease;
+            background: linear-gradient(90deg, var(--cyan), var(--blue));
+            color: #000;
+            box-shadow: 0 0 22px rgba(0, 255, 200, 0.22);
+            margin-top: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(0, 255, 200, 0.35);
+        }
+
+        .link {
+            margin-top: 18px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .link a {
+            color: var(--cyan);
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .link a:hover {
+            text-decoration: underline;
+        }
+
+        .top-note {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            margin-bottom: 18px;
+            color: var(--cyan);
+            background: rgba(0, 255, 200, 0.10);
+            border: 1px solid rgba(0, 255, 200, 0.2);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .footer {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 22px;
+            }
+
+            .brand {
+                margin-bottom: 18px;
+            }
+        }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Login</h2>
+    <div class="brand">
+        <div class="brand-icon">CS</div>
+        <div class="brand-text">
+            <h2>CyberScan</h2>
+            <p>Security Scanner Platform</p>
+        </div>
+    </div>
+
+    <div class="top-note">Secure Access</div>
+
+    <div class="title">Login</div>
+    <div class="subtitle">
+        Enter your email and password to access the dashboard and start scanning targets.
+    </div>
 
     <form method="POST">
         <div class="input-group">
             <label>Email</label>
-            <input type="email" name="email" required>
+            <input type="email" name="email" placeholder="you@example.com" required>
         </div>
 
         <div class="input-group">
             <label>Password</label>
-            <input type="password" name="password" required>
+            <input type="password" name="password" placeholder="Your password" required>
         </div>
 
-        <button class="btn">Login</button>
+        <button class="btn" type="submit">Login</button>
     </form>
 
     <div class="link">
         Don't have an account? <a href="/register">Register</a>
+    </div>
+
+    <div class="footer">
+        CyberScan secures scanning access for registered users.
     </div>
 </div>
 

@@ -1,103 +1,108 @@
 import re
 import time
-from utils import get_session, rate_sleep
-from report import section, vuln, safe, log
+import requests
+
+# -----------------------
+# 🧠 META
+# -----------------------
+
+meta = {
+    "name": "Weak Password / Brute Force",
+    "severity": "Critical",
+    "description": "Tests login security (weak passwords, brute-force, lockout, rate limiting)"
+}
+
+inputs = ["login_url", "username_field", "password_field"]
 
 
-def load_file(filename, fallback):
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    except Exception:
-        return fallback
+# -----------------------
+# 🧠 HELPERS
+# -----------------------
 
-
-def is_strong_password(password):
+def is_strong(password):
     return (
         len(password) >= 8 and
-        bool(re.search(r"[A-Z]", password)) and
-        bool(re.search(r"[a-z]", password)) and
-        bool(re.search(r"\d", password)) and
-        bool(re.search(r"[!@#$%^&*(),.?\":{}|<>]", password))
+        re.search(r"[A-Z]", password) and
+        re.search(r"[a-z]", password) and
+        re.search(r"\d", password)
     )
 
 
-def detect_rate_limiting(times):
+def detect_rate_limit(times):
     if len(times) < 5:
         return False
-    avg   = sum(times) / len(times)
-    early = sum(times[:3]) / 3
-    late  = sum(times[-3:]) / 3
-    return late > early * 1.5 and avg > 1.0
+    return sum(times[-3:]) > sum(times[:3]) * 1.5
 
 
-def check_weak_password(url, user_field, pass_field):
-    section("Login Security Analysis")
+# -----------------------
+# 🚀 SCAN
+# -----------------------
 
-    session   = get_session()
-    usernames = load_file("usernames.txt", ["admin"])
-    passwords = load_file("passwords.txt", ["admin123", "123456", "password"])
+def scan(url, login_url=None, username_field="username", password_field="password"):
+    if not login_url:
+        return {
+            "vulnerable": False,
+            "result": "Login URL not provided",
+            "severity": "Low"
+        }
 
-    weak   = [p for p in passwords if not is_strong_password(p)]
-    strong = [p for p in passwords if is_strong_password(p)]
-    log(f"[*] {len(usernames)} usernames | {len(weak)} weak / {len(strong)} strong passwords loaded")
+    session = requests.Session()
 
-    LOCKOUT_KEYWORDS = [
-        "locked", "temporarily blocked",
-        "account disabled", "too many attempts",
-        "temporarily disabled",
-    ]
-    SUCCESS_KEYWORDS = ["welcome", "dashboard", "logout", "my account", "profile"]
+    usernames = ["admin", "test"]
+    passwords = ["admin", "123456", "password", "Admin123!"]
 
     response_times = []
-    vulnerable     = False
-    success_found  = False
+    findings = []
 
-    for user in usernames:
-        for pwd in passwords:
+    try:
+        for user in usernames:
+            for pwd in passwords:
 
-            data = {user_field: user, pass_field: pwd}
+                data = {username_field: user, password_field: pwd}
 
-            try:
-                rate_sleep()
-                start   = time.time()
-                r       = session.post(url, data=data, timeout=10)
+                start = time.time()
+                r = session.post(login_url, data=data, timeout=10)
                 elapsed = time.time() - start
+
                 response_times.append(elapsed)
+                text = r.text.lower()
 
-                response_text = r.text.lower()
-                log(f"[*] {user}/{pwd} | {elapsed:.2f}s | Status: {r.status_code}")
-
-                # 1. Account Lockout
-                if any(k in response_text for k in LOCKOUT_KEYWORDS):
-                    vuln(f"Account lockout detected for user: {user}", "HIGH")
-                    vulnerable = True
+                # 🔥 successful login
+                if any(k in text for k in ["dashboard", "welcome", "logout"]):
+                    findings.append(f"Valid credentials found: {user}/{pwd}")
                     break
 
-                # 2. Successful Login
-                if any(k in response_text for k in SUCCESS_KEYWORDS):
-                    vuln(
-                        f"Successful login: {user} / {pwd}",
-                        "CRITICAL",
-                        verify_cmd=f'curl -X POST -d "{user_field}={user}&{pass_field}={pwd}" {url}'
-                    )
-                    success_found = True
-                    break
+                # 🔥 weak password
+                if not is_strong(pwd):
+                    findings.append(f"Weak password tested: {pwd}")
 
-                # 3. Rate Limiting
-                if detect_rate_limiting(response_times):
-                    vuln("Rate limiting detected (brute-force protection active)", "INFO")
-                    break
+            if findings:
+                break
 
-            except Exception as e:
-                log(f"[-] Request error ({user}/{pwd}): {e}")
+        # 🔥 rate limiting
+        if not detect_rate_limit(response_times):
+            findings.append("No rate limiting detected")
 
-        if success_found:
-            break
+        # -----------------------
+        # 📊 RESULT
+        # -----------------------
 
-    if not vulnerable:
-        safe("No account lockout mechanism detected")
-    if not detect_rate_limiting(response_times):
-        safe("No strong rate limiting detected")
-    if not success_found:
-        safe("No successful login indicator found")
+        if findings:
+            return {
+                "vulnerable": True,
+                "result": " | ".join(findings),
+                "severity": "Critical"
+            }
+
+        return {
+            "vulnerable": False,
+            "result": "No weak password issues detected",
+            "severity": "Low"
+        }
+
+    except Exception as e:
+        return {
+            "vulnerable": False,
+            "result": f"Error: {str(e)}",
+            "severity": "Low"
+        }

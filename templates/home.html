@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="description" content="CyberScan vulnerability scanner for detecting web security issues like XSS, SQL Injection, SSRF, and more.">
+  <meta name="theme-color" content="#07111a">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CyberScan - Responsive UI</title>
@@ -40,6 +42,7 @@
     }
 
     body {
+    overflow-x: hidden;  
     font-family: "Inter", sans-serif;
     color: white;
 
@@ -83,6 +86,7 @@
     }
 
     .brand-icon {
+      animation: glow 2s infinite alternate;
       width: 44px;
       height: 44px;
       border-radius: 14px;
@@ -147,6 +151,10 @@
     .btn-primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 0 30px rgba(0, 255, 200, 0.42);
+    }
+    
+    .feature-card:hover {
+  transform: translateY(-6px) scale(1.01);
     }
 
     /* Main Layout */
@@ -410,6 +418,21 @@
         align-items: flex-start;
       }
     }
+  @keyframes glow {
+  from { box-shadow: 0 0 10px rgba(0,255,200,0.2); }
+  to { box-shadow: 0 0 25px rgba(0,255,200,0.6); }
+}
+
+.fade {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: 0.8s;
+}
+
+.fade.show {
+  opacity: 1;
+  transform: translateY(0);
+}  
   </style>
 </head>
 <body>
@@ -447,8 +470,8 @@
           </p>
 
           <div class="hero-actions">
-            <a href="/dashboard" class="btn btn-primary">Start Scanning</a>
-            <a href="#" class="btn btn-secondary">Learn More</a>
+            <a href="/login" class="btn btn-primary">Start Scanning</a>
+            <a href="#features" class="btn btn-secondary">Learn More</a>
           </div>
 
           <div class="mini-grid">
@@ -463,49 +486,49 @@
           </div>
         </section>
 
-        <section class="right-panel">
-          <article class="feature-card glow-cyan">
-            <div class="feature-head">
-              <div class="feature-icon">S</div>
-              <h3>Scanner</h3>
-            </div>
-            <p>
-              Detect vulnerabilities like XSS, SQL Injection, SSRF, and more
-              with fast automated testing workflows and a cleaner user experience.
-            </p>
-          </article>
+<section class="right-panel" id="features">
+  <article class="feature-card glow-cyan fade">
+    <div class="feature-head">
+      <div class="feature-icon">S</div>
+      <h3>Scanner</h3>
+    </div>
+    <p>
+      Detect vulnerabilities like XSS, SQL Injection, SSRF, and more
+      with fast automated testing workflows and a cleaner user experience.
+    </p>
+  </article>
 
-          <article class="feature-card glow-pink">
-            <div class="feature-head">
-              <div class="feature-icon">i</div>
-              <h3>About Tool</h3>
-            </div>
-            <p>
-              Built for security testers and developers to identify weaknesses
-              quickly, efficiently, and with better visual organization.
-            </p>
-          </article>
+  <article class="feature-card glow-pink fade">
+    <div class="feature-head">
+      <div class="feature-icon">i</div>
+      <h3>About Tool</h3>
+    </div>
+    <p>
+      Built for security testers and developers to identify weaknesses
+      quickly, efficiently, and with better visual organization.
+    </p>
+  </article>
 
-          <article class="feature-card glow-green">
-            <div class="feature-head">
-              <div class="feature-icon">!</div>
-              <h3>Vulnerabilities</h3>
-            </div>
-            <p>
-              Covers XSS, SQL Injection, IDOR, SSRF, File Upload flaws,
-              Path Traversal, authentication issues, and more.
-            </p>
+  <article class="feature-card glow-green fade">
+    <div class="feature-head">
+      <div class="feature-icon">!</div>
+      <h3>Vulnerabilities</h3>
+    </div>
+    <p>
+      Covers XSS, SQL Injection, IDOR, SSRF, File Upload flaws,
+      Path Traversal, authentication issues, and more.
+    </p>
 
-            <div class="tags">
-              <span class="tag">XSS</span>
-              <span class="tag">SQLi</span>
-              <span class="tag">IDOR</span>
-              <span class="tag">SSRF</span>
-              <span class="tag">Upload</span>
-              <span class="tag">Traversal</span>
-            </div>
-          </article>
-        </section>
+    <div class="tags">
+      <span class="tag">XSS</span>
+      <span class="tag">SQLi</span>
+      <span class="tag">IDOR</span>
+      <span class="tag">SSRF</span>
+      <span class="tag">Upload</span>
+      <span class="tag">Traversal</span>
+    </div>
+  </article>
+</section>
       </main>
 
       <div class="footer-strip">
@@ -514,5 +537,18 @@
       </div>
     </div>
   </div>
+
+<script>
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      e.target.classList.add('show');
+    }
+  });
+});
+
+document.querySelectorAll('.fade').forEach(el => observer.observe(el));
+</script>
+  
 </body>
 </html>

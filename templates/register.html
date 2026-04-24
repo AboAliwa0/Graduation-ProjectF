@@ -1,39 +1,192 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Register</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111a">
+    <title>CyberScan | Register</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+
+        :root {
+            --bg:#07111a;
+            --panel:rgba(15,23,34,0.92);
+            --border:rgba(255,255,255,0.08);
+            --text:#eef7ff;
+            --muted:#9eb0c0;
+            --cyan:#00ffc8;
+            --blue:#007cf0;
+            --shadow:0 10px 30px rgba(0,0,0,0.28);
+        }
+
+        body {
+            font-family:"Inter", sans-serif;
+            color:var(--text);
+            min-height:100vh;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            background:
+                linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)),
+                url("{{ url_for('static', filename='images/loginback1.png') }}");
+            background-size:cover;
+            background-position:center;
+        }
+
+        .container {
+            width:min(460px,100%);
+            background:var(--panel);
+            border:1px solid var(--border);
+            border-radius:28px;
+            padding:30px;
+            box-shadow:var(--shadow);
+            backdrop-filter:blur(14px);
+        }
+
+        .brand {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin-bottom:22px;
+        }
+
+        .brand-icon {
+            width:46px;
+            height:46px;
+            border-radius:14px;
+            display:grid;
+            place-items:center;
+            font-weight:800;
+            color:#000;
+            background:linear-gradient(90deg,var(--cyan),var(--blue));
+        }
+
+        .title {
+            font-size:2rem;
+            font-weight:800;
+            margin-bottom:8px;
+        }
+
+        .subtitle {
+            color:var(--muted);
+            margin-bottom:22px;
+            font-size:0.95rem;
+        }
+
+        .input-group {
+            margin-bottom:16px;
+        }
+
+        .input-group label {
+            display:block;
+            margin-bottom:6px;
+            font-weight:700;
+            font-size:0.9rem;
+        }
+
+        .input-group input {
+            width:100%;
+            padding:12px;
+            border-radius:12px;
+            border:1px solid rgba(255,255,255,0.08);
+            background:rgba(0,0,0,0.4);
+            color:#fff;
+        }
+
+        .input-group input:focus {
+            border-color:var(--cyan);
+            outline:none;
+        }
+
+        .btn {
+            width:100%;
+            padding:12px;
+            border:none;
+            border-radius:999px;
+            font-weight:800;
+            cursor:pointer;
+            background:linear-gradient(90deg,var(--cyan),var(--blue));
+            color:#000;
+            margin-top:10px;
+        }
+
+        .btn:hover {
+            transform:translateY(-2px);
+            box-shadow:0 0 25px rgba(0,255,200,0.3);
+        }
+
+        .link {
+            margin-top:18px;
+            text-align:center;
+            color:var(--muted);
+        }
+
+        .link a {
+            color:var(--cyan);
+            font-weight:bold;
+        }
+
+        .link a:hover {
+            text-decoration:underline;
+        }
+
+        .note {
+            margin-top:16px;
+            font-size:0.8rem;
+            color:var(--muted);
+            text-align:center;
+        }
+
+    </style>
 </head>
+
 <body>
 
 <div class="container">
 
-  <h2>Create Account</h2>
-
-  <form method="POST">
-
-    <div class="input-group">
-      <label>Email</label>
-      <input type="email" name="email" required>
+    <div class="brand">
+        <div class="brand-icon">CS</div>
+        <div>
+            <strong>CyberScan</strong><br>
+            <small style="color:var(--muted)">Security Platform</small>
+        </div>
     </div>
 
-    <div class="input-group">
-      <label>Password</label>
-      <input type="password" name="password" required>
+    <div class="title">Create Account</div>
+    <div class="subtitle">Register to start scanning vulnerabilities</div>
+
+    <form method="POST">
+
+        <div class="input-group">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="you@example.com" required>
+        </div>
+
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" name="password" placeholder="Strong password" required>
+        </div>
+
+        <div class="input-group">
+            <label>Confirm Password</label>
+            <input type="password" name="confirm_password" placeholder="Repeat password" required>
+        </div>
+
+        <button class="btn" type="submit">Register</button>
+
+    </form>
+
+    <div class="link">
+        Already have an account? <a href="/login">Login</a>
     </div>
 
-    <div class="input-group">
-      <label>Confirm Password</label>
-      <input type="password" name="confirm_password" required>
+    <div class="note">
+        Password should be strong for better security 🔐
     </div>
-
-    <button class="btn" type="submit">Register</button>
-
-  </form>
-
-  <div class="link">
-    Already have an account? <a href="/login">Login</a>
-  </div>
 
 </div>
 

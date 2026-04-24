@@ -1,56 +1,1234 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#07111a">
+<title>CyberScan Dashboard</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root{
+    --bg:#07111a;
+    --panel:#0f1722;
+    --panel-2:#111a27;
+    --border:rgba(255,255,255,0.08);
+    --text:#eef7ff;
+    --muted:#9eb0c0;
+    --cyan:#00ffc8;
+    --blue:#007cf0;
+    --green:#62ff8f;
+    --yellow:#ffcd4d;
+    --red:#ff6b6b;
+    --shadow:0 10px 30px rgba(0,0,0,0.28);
+    --radius-xl:28px;
+    --radius-lg:22px;
+    --radius-md:16px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+    font-family: "Inter", sans-serif;
+    background:
+        linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)),
+        url("{{ url_for('static', filename='images/loginback1.png') }}");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.container {
+    width: min(1280px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 18px 0 30px;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    color: #000;
+    background: linear-gradient(90deg, var(--cyan), var(--blue));
+    box-shadow: 0 0 24px rgba(0,255,200,0.28);
+    animation: pulseGlow 2s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    from { box-shadow: 0 0 12px rgba(0,255,200,0.18); transform: translateY(0); }
+    to { box-shadow: 0 0 26px rgba(0,255,200,0.52); transform: translateY(-1px); }
+}
+
+.brand-text h2 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.brand-text p {
+    font-size: 0.84rem;
+    color: var(--muted);
+    margin-top: 3px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border: none;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 12px 18px;
+    border-radius: 999px;
+    transition: 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: linear-gradient(90deg, var(--cyan), var(--blue));
+    color: #000;
+    box-shadow: 0 0 22px rgba(0, 255, 200, 0.22);
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 24px rgba(0,255,200,0.18);
+}
+
+.btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 18px;
+    align-items: start;
+}
+
+.card {
+    background: rgba(15, 23, 34, 0.88);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+}
+
+.card-pad {
+    padding: 22px;
+}
+
+.section-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-bottom: 12px;
+}
+
+.section-subtitle {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    margin-bottom: 16px;
+}
+
+.input {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.42);
+    color: var(--text);
+    outline: none;
+    margin-bottom: 14px;
+}
+
+.input:focus {
+    border-color: rgba(0,255,200,0.45);
+    box-shadow: 0 0 0 3px rgba(0,255,200,0.08);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.badge.ok { border-color: rgba(98,255,143,0.22); color: var(--green); }
+.badge.warn { border-color: rgba(255,205,77,0.22); color: var(--yellow); }
+.badge.err { border-color: rgba(255,107,107,0.22); color: var(--red); }
+
+.scan-toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.progress-wrap {
+    width: 100%;
+    margin-top: 16px;
+    display: none;
+}
+
+.progress {
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--cyan), var(--blue));
+    transition: width 0.25s ease;
+}
+
+.progress-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.scanner-box {
+    margin-top: 8px;
+    display: grid;
+    gap: 12px;
+}
+
+.scanner-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.scanner-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    transition: 0.2s ease;
+    cursor: pointer;
+}
+
+.scanner-option:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0,255,200,0.2);
+    box-shadow: 0 0 18px rgba(0,255,200,0.08);
+}
+
+.scanner-option input {
+    margin-top: 4px;
+    accent-color: var(--cyan);
+}
+
+.scanner-option .name {
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.scanner-option .meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.param-block {
+    margin-top: 14px;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.09);
+}
+
+.param-block h4 {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.param-item {
+    display: grid;
+    gap: 6px;
+}
+
+.param-item label {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.helper {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    padding: 10px 2px 0;
+}
+
+.sidebar {
+    display: grid;
+    gap: 18px;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat {
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.stat .label {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+}
+
+.stat .value {
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.chart-card canvas {
+    width: 100% !important;
+    height: 240px !important;
+}
+
+.logs pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 10px;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 14px;
+    border-radius: 16px;
+    min-height: 220px;
+    max-height: 340px;
+    overflow: auto;
+    color: #d9f7ee;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    overflow: hidden;
+}
+
+.results-table th,
+.results-table td {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 12px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.results-table th {
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+    background: rgba(255,255,255,0.03);
+}
+
+.results-table tbody tr:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.sev-critical { color: #ff4d6d; font-weight: 800; }
+.sev-high { color: var(--red); font-weight: 800; }
+.sev-medium { color: var(--yellow); font-weight: 800; }
+.sev-low { color: var(--green); font-weight: 800; }
+
+.subtle {
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.6;
+}
+
+.recent-scans {
+    margin-top: 18px;
+}
+
+.recent-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.recent-table th,
+.recent-table td {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 12px 10px;
+    text-align: left;
+    font-size: 0.92rem;
+}
+
+.recent-table th {
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+    background: rgba(255,255,255,0.03);
+}
+
+.footer-note {
+    margin-top: 18px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    border: 1px solid rgba(255,255,255,0.08);
+    line-height: 1.7;
+}
+
+.fade-up {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: 0.35s ease;
+}
+
+.fade-up.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (max-width: 1080px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        width: min(100%, calc(100% - 22px));
+        padding: 14px 0 24px;
+    }
+
+    .header {
+        align-items: stretch;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .header-actions .btn {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .row {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .scanner-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card-pad {
+        padding: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-actions {
+        flex-direction: column;
+    }
+
+    .scan-toolbar .btn {
+        width: 100%;
+    }
+
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .results-table th:nth-child(2),
+    .results-table td:nth-child(2) {
+        max-width: 220px;
+        word-break: break-word;
+    }
+}
+</style>
 </head>
+
 <body>
+<div class="container">
 
-<div class="dashboard">
-
-    <!-- Header -->
     <div class="header">
-        <h1> Vulnerability Scanner</h1>
-        <div class="nav-buttons">
-            <a href="/login" class="btn-nav">Login</a>
-            <a href="/register" class="btn-nav">Register</a>
-            <a href="/logout" class="logout">Logout</a>
+        <div class="brand">
+            <div class="brand-icon">CS</div>
+            <div>
+                <div style="font-size:1.05rem;font-weight:800;">CyberScan</div>
+                <div class="subtle">Web Vulnerability Dashboard</div>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <a href="/history" class="btn btn-secondary">History</a>
+            <a href="/logout" class="btn btn-primary">Logout</a>
         </div>
     </div>
 
-    <!-- Scan Box -->
-    <div class="card">
-
-        <form method="POST">
-
-            <div class="input-group">
-                <label>Target URL</label>
-                <input type="text" name="url" placeholder="https://example.com" required>
+    <div class="grid">
+        <div class="card card-pad fade-up">
+            <div class="section-title">Start Scan</div>
+            <div class="section-subtitle">
+                Select the vulnerabilities you want to test. Dynamic inputs will appear automatically based on the scanners metadata.
             </div>
 
-            <h3 class="section-title">Select Vulnerabilities</h3>
+            <input type="text" id="url" class="input" placeholder="https://target.com">
 
-            <div class="checkbox-grid">
-
-                <label><input type="checkbox" name="vuln" value="blind_xss"> Blind XSS</label>
-                <label><input type="checkbox" name="vuln" value="file_upload"> File Upload</label>
-                <label><input type="checkbox" name="vuln" value="html_injection"> HTML Injection</label>
-                <label><input type="checkbox" name="vuln" value="idor"> IDOR</label>
-                <label><input type="checkbox" name="vuln" value="path_traversal"> Path Traversal</label>
-                <label><input type="checkbox" name="vuln" value="rate_limit"> Rate Limit</label>
-                <label><input type="checkbox" name="vuln" value="sql_injection"> SQL Injection</label>
-                <label><input type="checkbox" name="vuln" value="ssrf"> SSRF</label>
-                <label><input type="checkbox" name="vuln" value="xss"> XSS</label>
-
+            <div class="row">
+                <div class="stat">
+                    <div class="label">Auth Mode</div>
+                    <div class="value" id="authMode">Session / JWT</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Current Scan ID</div>
+                    <div class="value" id="scanIdLabel">—</div>
+                </div>
             </div>
 
-            <button class="btn scan-btn">Start Scan</button>
+            <div class="scan-toolbar">
+                <button id="scanBtn" class="btn btn-primary" type="button" onclick="startScan()">Start Scan</button>
+                <button class="btn btn-outline" type="button" onclick="clearSelection()">Clear Selection</button>
+                <button class="btn btn-outline" type="button" onclick="selectAllScanners()">Select All</button>
+            </div>
 
-        </form>
+            <div class="progress-wrap" id="progressWrap">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-meta">
+                    <span id="progressLabel">Idle</span>
+                    <span id="scanStatusText">Waiting</span>
+                </div>
+            </div>
 
+            <div style="margin-top:18px;">
+                <div class="section-title" style="margin-bottom:8px;">Vulnerabilities</div>
+                <div class="section-subtitle">Choose what to test on this target.</div>
+                <div id="scannerList" class="scanner-box"></div>
+            </div>
+
+            <div style="margin-top:18px;">
+                <div class="section-title" style="margin-bottom:8px;">Dynamic Inputs</div>
+                <div class="section-subtitle">Fill in extra fields requested by the selected scanners.</div>
+                <div id="dynamicInputs"></div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="card card-pad chart-card fade-up">
+                <div class="section-title">Severity Chart</div>
+                <div class="section-subtitle">Live breakdown of findings after each scan.</div>
+                <canvas id="severityChart"></canvas>
+            </div>
+
+            <div class="card card-pad fade-up">
+                <div class="section-title">Quick Stats</div>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="label">Scanners Loaded</div>
+                        <div class="value" id="scannerCount">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="label">Selected</div>
+                        <div class="value" id="selectedCount">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="label">Findings</div>
+                        <div class="value" id="findingsCount">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="label">Token</div>
+                        <div class="value" id="tokenState">No</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid" style="margin-top:18px;">
+        <div class="card card-pad logs fade-up">
+            <div class="section-title">Live Scan Logs</div>
+            <div class="section-subtitle">Messages come in real time through Socket.IO.</div>
+            <pre id="logs">Waiting for scan...</pre>
+        </div>
+
+        <div class="card card-pad fade-up">
+            <div class="section-title">Results</div>
+            <div class="section-subtitle">Structured results are shown here after the scan finishes.</div>
+
+            <div style="overflow:auto;">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Vulnerability</th>
+                            <th>Result</th>
+                            <th>Severity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results">
+                        <tr>
+                            <td colspan="3" class="subtle">No results yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-pad recent-scans fade-up">
+        <div class="section-title">Recent Scans</div>
+        <div class="section-subtitle">
+            Pulled from your account history. If you are using JWT mode, the dashboard reads the token from localStorage.
+        </div>
+
+        <div style="overflow:auto;">
+            <table class="recent-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Target</th>
+                        <th>Status</th>
+                        <th>Findings</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="recentScans">
+                    <tr>
+                        <td colspan="5" class="subtle">No scans loaded yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        This dashboard is wired for session login and JWT login. Dynamic scanner inputs are generated from the scanners metadata returned by <code>/api/scanners</code>, and live logs/results are streamed through Socket.IO.
     </div>
 
 </div>
 
+<script>
+let scannerSpecs = [];
+let socket = null;
+let currentScanId = null;
+let currentResults = [];
+let chartInstance = null;
+let scanActive = false;
+let progressValue = 0;
+let progressTimer = null;
+
+const fallbackScanners = [
+    { name: "blind_xss", inputs: ["param"], meta: { name: "Blind XSS", severity: "High", description: "Blind XSS payload testing" } },
+    { name: "clickjacking_scanner", inputs: [], meta: { name: "Clickjacking", severity: "Medium", description: "Frame protection checks" } },
+    { name: "cors_scanner", inputs: [], meta: { name: "CORS", severity: "High", description: "CORS policy testing" } },
+    { name: "csrf_scanner", inputs: [], meta: { name: "CSRF", severity: "Medium", description: "CSRF protection checks" } },
+    { name: "dir_scan", inputs: [], meta: { name: "Directory Listing", severity: "Medium", description: "Exposed directories check" } },
+    { name: "file_upload", inputs: ["upload_url"], meta: { name: "File Upload", severity: "High", description: "Upload abuse testing" } },
+    { name: "graphql_scanner", inputs: ["endpoint"], meta: { name: "GraphQL", severity: "Medium", description: "Introspection testing" } },
+    { name: "host_header_scanner", inputs: [], meta: { name: "Host Header Injection", severity: "High", description: "Host header poisoning" } },
+    { name: "html_injection", inputs: ["param"], meta: { name: "HTML Injection", severity: "Medium", description: "HTML reflection" } },
+    { name: "idor", inputs: ["param"], meta: { name: "IDOR / BOLA", severity: "High", description: "ID manipulation testing" } },
+    { name: "info_scan", inputs: [], meta: { name: "Information Disclosure", severity: "Medium", description: "Sensitive header/body exposure" } },
+    { name: "open_redirect_scanner", inputs: [], meta: { name: "Open Redirect", severity: "High", description: "Redirect abuse testing" } },
+    { name: "path_traversal", inputs: ["param"], meta: { name: "Path Traversal", severity: "High", description: "Traversal payload testing" } },
+    { name: "rate_limit", inputs: [], meta: { name: "Rate Limiting", severity: "Medium", description: "Brute-force protection testing" } },
+    { name: "sql_injection", inputs: ["param"], meta: { name: "SQL Injection", severity: "High", description: "Boolean / time / error-based SQLi" } },
+    { name: "ssrf", inputs: ["param"], meta: { name: "SSRF", severity: "High", description: "Server-side request forgery testing" } },
+    { name: "stored_xss", inputs: ["submit_path", "param_name"], meta: { name: "Stored XSS", severity: "Critical", description: "Persistent XSS testing" } },
+    { name: "weak_password", inputs: ["login_url", "username_field", "password_field"], meta: { name: "Weak Password", severity: "Critical", description: "Brute-force / lockout testing" } },
+    { name: "xss", inputs: ["param"], meta: { name: "Reflected XSS", severity: "High", description: "Reflected XSS payload testing" } },
+];
+
+function escapeHTML(value) {
+    const div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+}
+
+function getToken() {
+    return localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+}
+
+function authHeaders(json = true) {
+    const headers = {};
+
+    if (json) {
+        headers["Content-Type"] = "application/json";
+    }
+
+    const token = getToken();
+    if (token) {
+        headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+        document.getElementById("authMode").textContent = "JWT Token";
+        document.getElementById("tokenState").textContent = "Yes";
+    } else {
+        document.getElementById("authMode").textContent = "Session";
+        document.getElementById("tokenState").textContent = "No";
+    }
+
+    return headers;
+}
+
+function setProgress(value, label) {
+    progressValue = Math.max(0, Math.min(100, value));
+    document.getElementById("progressBar").style.width = `${progressValue}%`;
+    document.getElementById("progressLabel").textContent = label || `${progressValue}%`;
+}
+
+function startProgressTicker() {
+    clearInterval(progressTimer);
+    progressTimer = setInterval(() => {
+        if (!scanActive) {
+            clearInterval(progressTimer);
+            return;
+        }
+
+        if (progressValue < 90) {
+            setProgress(progressValue + 5, "Scanning...");
+        }
+    }, 650);
+}
+
+function resetUIForScan() {
+    scanActive = true;
+    currentResults = [];
+    currentScanId = null;
+
+    document.getElementById("scanIdLabel").textContent = "…";
+    document.getElementById("scanStatusText").textContent = "Running";
+    document.getElementById("findingsCount").textContent = "0";
+
+    document.getElementById("logs").textContent = "";
+    document.getElementById("results").innerHTML = `
+        <tr><td colspan="3" class="subtle">Scan running...</td></tr>
+    `;
+
+    setProgress(8, "Queued");
+    document.getElementById("progressWrap").style.display = "block";
+
+    if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+    }
+
+    document.getElementById("severityChart").getContext("2d").clearRect(0, 0, 9999, 9999);
+}
+
+function appendLog(message) {
+    if (!scanActive) return;
+
+    const pre = document.getElementById("logs");
+    pre.textContent += `${message}\n`;
+    pre.scrollTop = pre.scrollHeight;
+
+    if (progressValue < 88) {
+        setProgress(progressValue + 6, "Scanning...");
+    }
+}
+
+function getSelectedScanners() {
+    return [...document.querySelectorAll(".scanner-check:checked")].map(cb => cb.value);
+}
+
+function beautifyName(name) {
+    const spec = scannerSpecs.find(s => s.name === name);
+    if (spec && spec.meta && spec.meta.name) return spec.meta.name;
+    return name
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function scannerSeverityBadge(spec) {
+    const sev = (spec?.meta?.severity || "Low").toLowerCase();
+    return `<span class="badge ${sev === "critical" ? "err" : sev === "high" ? "err" : sev === "medium" ? "warn" : "ok"}">${escapeHTML(spec?.meta?.severity || "Low")}</span>`;
+}
+
+function renderScannerOptions() {
+    const container = document.getElementById("scannerList");
+    container.innerHTML = "";
+
+    if (!scannerSpecs.length) {
+        container.innerHTML = `<div class="helper">No scanners available.</div>`;
+        return;
+    }
+
+    scannerSpecs.forEach(spec => {
+        const card = document.createElement("label");
+        card.className = "scanner-option";
+
+        const desc = (spec.meta && spec.meta.description) ? spec.meta.description : "No description provided.";
+
+        card.innerHTML = `
+            <input type="checkbox" class="scanner-check" value="${escapeHTML(spec.name)}">
+            <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <div class="name">${escapeHTML(beautifyName(spec.name))}</div>
+                    ${scannerSeverityBadge(spec)}
+                </div>
+                <div class="meta">${escapeHTML(desc)}</div>
+            </div>
+        `;
+
+        container.appendChild(card);
+    });
+
+    document.querySelectorAll(".scanner-check").forEach(cb => {
+        cb.addEventListener("change", renderDynamicInputs);
+    });
+
+    updateCounts();
+    renderDynamicInputs();
+}
+
+function renderDynamicInputs() {
+    const container = document.getElementById("dynamicInputs");
+    container.innerHTML = "";
+
+    const selected = getSelectedScanners();
+    updateCounts();
+
+    if (!selected.length) {
+        container.innerHTML = `<div class="helper">Select one or more scanners to reveal required inputs.</div>`;
+        return;
+    }
+
+    const selectedSpecs = scannerSpecs.filter(s => selected.includes(s.name));
+    let anyInputs = false;
+
+    selectedSpecs.forEach(spec => {
+        const inputs = Array.isArray(spec.inputs) ? spec.inputs : [];
+
+        if (!inputs.length) return;
+        anyInputs = true;
+
+        const block = document.createElement("div");
+        block.className = "param-block";
+
+        const title = document.createElement("h4");
+        title.textContent = `${beautifyName(spec.name)} inputs`;
+        block.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "param-grid";
+
+        inputs.forEach(inp => {
+            const item = document.createElement("div");
+            item.className = "param-item";
+
+            const label = document.createElement("label");
+            label.textContent = inp;
+
+            const field = document.createElement("input");
+            field.type = "text";
+            field.className = "input";
+            field.placeholder = `${spec.name} · ${inp}`;
+            field.name = `${spec.name}_${inp}`;
+            field.dataset.scanner = spec.name;
+            field.dataset.param = inp;
+            field.style.marginBottom = "0";
+
+            item.appendChild(label);
+            item.appendChild(field);
+            grid.appendChild(item);
+        });
+
+        block.appendChild(grid);
+        container.appendChild(block);
+    });
+
+    if (!anyInputs) {
+        container.innerHTML = `<div class="helper">The selected scanners do not require extra inputs.</div>`;
+    }
+}
+
+function updateCounts() {
+    document.getElementById("scannerCount").textContent = scannerSpecs.length;
+    document.getElementById("selectedCount").textContent = getSelectedScanners().length;
+    document.getElementById("findingsCount").textContent = currentResults.length;
+}
+
+function selectAllScanners() {
+    document.querySelectorAll(".scanner-check").forEach(cb => {
+        cb.checked = true;
+    });
+    renderDynamicInputs();
+}
+
+function clearSelection() {
+    document.querySelectorAll(".scanner-check").forEach(cb => {
+        cb.checked = false;
+    });
+
+    const inputs = document.querySelectorAll("#dynamicInputs input");
+    inputs.forEach(i => i.value = "");
+
+    renderDynamicInputs();
+}
+
+function buildPayload() {
+    const payload = {
+        url: document.getElementById("url").value.trim(),
+        vulns: getSelectedScanners()
+    };
+
+    document.querySelectorAll("#dynamicInputs input").forEach(input => {
+        payload[input.name] = input.value;
+    });
+
+    return payload;
+}
+
+async function startScan() {
+    const url = document.getElementById("url").value.trim();
+    const selected = getSelectedScanners();
+
+    if (!url) {
+        alert("Enter a target URL.");
+        return;
+    }
+
+    if (!selected.length) {
+        alert("Select at least one vulnerability.");
+        return;
+    }
+
+    const scanBtn = document.getElementById("scanBtn");
+    scanBtn.disabled = true;
+
+    resetUIForScan();
+    startProgressTicker();
+
+    const payload = buildPayload();
+
+    try {
+        const response = await fetch("/scan-live", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: authHeaders(true),
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            scanActive = false;
+            scanBtn.disabled = false;
+            setProgress(0, "Failed");
+            document.getElementById("scanStatusText").textContent = "Failed";
+            alert(data.error || "Scan request failed.");
+            return;
+        }
+
+        currentScanId = data.scan_id || null;
+        document.getElementById("scanIdLabel").textContent = currentScanId ? `#${currentScanId}` : "—";
+        document.getElementById("scanStatusText").textContent = "Running";
+
+        appendLog(`[SCAN ${currentScanId || "?"}] Scan queued...`);
+
+        if (socket && socket.connected && currentScanId) {
+            socket.emit("join_scan", { scan_id: currentScanId });
+        }
+
+    } catch (error) {
+        scanActive = false;
+        scanBtn.disabled = false;
+        setProgress(0, "Error");
+        document.getElementById("scanStatusText").textContent = "Error";
+        alert(error.message || "Unexpected error.");
+    }
+}
+
+function renderResults(results) {
+    const table = document.getElementById("results");
+    table.innerHTML = "";
+
+    if (!Array.isArray(results) || !results.length) {
+        table.innerHTML = `<tr><td colspan="3" class="subtle">No findings detected.</td></tr>`;
+        document.getElementById("findingsCount").textContent = "0";
+        return;
+    }
+
+    currentResults = results;
+    document.getElementById("findingsCount").textContent = String(results.length);
+
+    results.forEach(r => {
+        const severity = (r.severity || "Low").toString();
+        const sevClass = `sev-${severity.toLowerCase()}`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${escapeHTML(r.name || "")}</td>
+            <td>${escapeHTML(r.result || "")}</td>
+            <td class="${sevClass}">${escapeHTML(severity)}</td>
+        `;
+        table.appendChild(tr);
+    });
+}
+
+function drawChart(results) {
+    const counts = {
+        Critical: 0,
+        High: 0,
+        Medium: 0,
+        Low: 0
+    };
+
+    (results || []).forEach(r => {
+        const sev = (r.severity || "Low").toString();
+        if (sev in counts) counts[sev] += 1;
+        else counts.Low += 1;
+    });
+
+    const ctx = document.getElementById("severityChart").getContext("2d");
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: ["Critical", "High", "Medium", "Low"],
+            datasets: [{
+                data: [counts.Critical, counts.High, counts.Medium, counts.Low],
+                backgroundColor: ["#ff4d6d", "#ff6b6b", "#ffcd4d", "#62ff8f"],
+                borderColor: "rgba(255,255,255,0.06)",
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "#eef7ff"
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadRecentScans() {
+    const table = document.getElementById("recentScans");
+
+    try {
+        const response = await fetch("/api/history", {
+            method: "GET",
+            credentials: "same-origin",
+            headers: authHeaders(false)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            table.innerHTML = `<tr><td colspan="5" class="subtle">Could not load history.</td></tr>`;
+            return;
+        }
+
+        const scans = Array.isArray(data.scans) ? data.scans : [];
+        if (!scans.length) {
+            table.innerHTML = `<tr><td colspan="5" class="subtle">No scans found.</td></tr>`;
+            return;
+        }
+
+        table.innerHTML = "";
+        scans.slice(0, 5).forEach(scan => {
+            const findings = Array.isArray(scan.results) ? scan.results.length : 0;
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>#${escapeHTML(scan.id)}</td>
+                <td>${escapeHTML(scan.target || "")}</td>
+                <td>${escapeHTML(scan.status || "done")}</td>
+                <td>${escapeHTML(String(findings))}</td>
+                <td>${escapeHTML(scan.created_at || "")}</td>
+            `;
+            table.appendChild(tr);
+        });
+
+    } catch (e) {
+        table.innerHTML = `<tr><td colspan="5" class="subtle">History unavailable.</td></tr>`;
+    }
+}
+
+function initSocket() {
+    socket = io({
+        transports: ["websocket", "polling"]
+    });
+
+    socket.on("connect", () => {
+        authHeaders(false);
+    });
+
+    socket.on("server_message", (payload) => {
+        if (!scanActive) return;
+        if (payload && payload.message) {
+            appendLog(`[SOCKET] ${payload.message}`);
+        }
+    });
+
+    socket.on("log", (msg) => {
+        if (!scanActive) return;
+        appendLog(msg);
+    });
+
+    socket.on("scan_complete", (payload) => {
+        if (!payload) return;
+
+        if (currentScanId && payload.scan_id && payload.scan_id !== currentScanId) {
+            return;
+        }
+
+        scanActive = false;
+        clearInterval(progressTimer);
+
+        const scanBtn = document.getElementById("scanBtn");
+        scanBtn.disabled = false;
+
+        const results = Array.isArray(payload.results) ? payload.results : [];
+        renderResults(results);
+        drawChart(results);
+
+        setProgress(100, "Complete");
+        document.getElementById("scanStatusText").textContent = payload.status || "done";
+        document.getElementById("findingsCount").textContent = String(results.length);
+
+        loadRecentScans();
+    });
+}
+
+async function loadScannerSpecs() {
+    try {
+        const response = await fetch("/api/scanners", {
+            method: "GET",
+            credentials: "same-origin",
+            headers: authHeaders(false)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && Array.isArray(data.scanners) && data.scanners.length) {
+            scannerSpecs = data.scanners;
+        } else {
+            scannerSpecs = fallbackScanners;
+        }
+    } catch (e) {
+        scannerSpecs = fallbackScanners;
+    }
+
+    renderScannerOptions();
+    updateCounts();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const token = getToken();
+    document.getElementById("tokenState").textContent = token ? "Yes" : "No";
+    document.getElementById("authMode").textContent = token ? "JWT Token" : "Session";
+
+    await loadScannerSpecs();
+    initSocket();
+    loadRecentScans();
+
+    document.getElementById("results").innerHTML = `<tr><td colspan="3" class="subtle">No results yet.</td></tr>`;
+    document.getElementById("logs").textContent = "Waiting for scan...";
+    setProgress(0, "Idle");
+
+    document.getElementById("scannerList").addEventListener("change", () => {
+        renderDynamicInputs();
+    });
+
+    // subtle entrance animation
+    document.querySelectorAll(".fade-up").forEach((el, index) => {
+        setTimeout(() => el.classList.add("show"), index * 80);
+    });
+});
+</script>
 </body>
 </html>

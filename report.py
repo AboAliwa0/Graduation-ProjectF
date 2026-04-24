@@ -1,66 +1,46 @@
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+import json
 from datetime import datetime
 
-def start_report(target):
-    with open("results.txt", "w") as f:
-        f.write("=== Vulnerability Scan Report ===\n")
-        f.write(f"Target: {target}\n")
-        f.write(f"Time: {datetime.now()}\n\n")
+def generate_pdf(data, target):
+    doc = SimpleDocTemplate("scan_report.pdf")
 
-def get_severity(result):
-    if "[+]" in result:
-        return "HIGH"
-    elif "[!]" in result:
-        return "MEDIUM"
-    elif "[*]" in result:
-        return "LOW"
-    else:
-        return "INFO"
+    styles = getSampleStyleSheet()
+    elements = []
 
+    # Title
+    elements.append(Paragraph("Vulnerability Scan Report", styles['Title']))
+    elements.append(Spacer(1, 10))
 
-def generate_report(results, target):
-    now = datetime.now()
-    date_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    # Info
+    elements.append(Paragraph(f"Target: {target}", styles['Normal']))
+    elements.append(Paragraph(f"Date: {datetime.now()}", styles['Normal']))
+    elements.append(Spacer(1, 20))
 
-    with open("report.txt", "w") as file:
-        file.write("=== Vulnerability Scan Report ===\n\n")
-        file.write(f"Target: {target}\n")
-        file.write(f"Date & Time: {date_time}\n\n")
+    # Table Data
+    table_data = [["Vulnerability", "Result", "Severity"]]
 
-        file.write("Results:\n")
-        file.write("-" * 40 + "\n")
+    for item in data:
+        table_data.append([
+            item.get("name", ""),
+            item.get("result", ""),
+            item.get("severity", "")
+        ])
 
-        for result in results:
-            severity = get_severity(result)
-            file.write(f"{result}  --> Severity: {severity}\n")
+    table = Table(table_data)
 
-    print("[+] Report saved as report.txt")
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.black),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
 
+        ('GRID', (0,0), (-1,-1), 1, colors.gray),
 
-    # ===== Compatibility Layer =====
+        ('BACKGROUND', (0,1), (-1,-1), colors.whitesmoke)
+    ]))
 
-def section(title):
-    return "\n" + "=" * 40 + f"\n[ {title} ]\n" + "=" * 40
+    elements.append(table)
 
-
-def vuln(name, status="+", risk="HIGH"):
-    return f"[{status}] {name} --> Severity: {risk}"
-
-
-def safe(name):
-    return f"[-] {name} --> Severity: INFO"
-
-
-def log(message):
-    print(f"[LOG] {message}")
-
-
-def info(msg):
-    return f"[i] {msg}"
-
-
-def warn(msg):
-    return f"[!] {msg}"
-
-
-def success(msg):
-    return f"[+] {msg}"
+    doc.build(elements)
