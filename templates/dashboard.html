@@ -1160,6 +1160,9 @@ function initSocket() {
     });
 
     socket.on("scan_complete", (payload) => {
+    if (payload.user_id && payload.user_id != "{{ session['user_id'] }}") {
+    return;
+}
         if (!payload) return;
 
         if (currentScanId && payload.scan_id && payload.scan_id !== currentScanId) {

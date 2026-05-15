@@ -599,12 +599,11 @@ def run_scan(scan_id, user_id, url, selected, payload_data):
             "scan_complete",
             {
                 "scan_id": scan_id,
+                "user_id": user_id,
                 "status": status,
                 "results": results,
             },
         )
-
-
 # -----------------------
 # 📡 Scan API
 # -----------------------
