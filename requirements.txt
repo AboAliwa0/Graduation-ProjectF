@@ -1,0 +1,9 @@
+Flask
+Flask-Bcrypt
+Flask-JWT-Extended
+Flask-SocketIO
+requests
+beautifulsoup4
+lxml
+python-socketio
+eventlet
