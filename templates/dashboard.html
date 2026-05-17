@@ -1,1237 +1,1158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#07111a">
-<title>CyberScan Dashboard</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-:root{
-    --bg:#07111a;
-    --panel:#0f1722;
-    --panel-2:#111a27;
-    --border:rgba(255,255,255,0.08);
-    --text:#eef7ff;
-    --muted:#9eb0c0;
-    --cyan:#00ffc8;
-    --blue:#007cf0;
-    --green:#62ff8f;
-    --yellow:#ffcd4d;
-    --red:#ff6b6b;
-    --shadow:0 10px 30px rgba(0,0,0,0.28);
-    --radius-xl:28px;
-    --radius-lg:22px;
-    --radius-md:16px;
-}
-
-html { scroll-behavior: smooth; }
-
-body {
-    font-family: "Inter", sans-serif;
-    background:
-        linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)),
-        url("{{ url_for('static', filename='images/loginback1.png') }}");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-}
-
-a { color: inherit; text-decoration: none; }
-
-.container {
-    width: min(1280px, calc(100% - 32px));
-    margin: 0 auto;
-    padding: 18px 0 30px;
-}
-
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 22px;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.brand-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    display: grid;
-    place-items: center;
-    font-weight: 800;
-    color: #000;
-    background: linear-gradient(90deg, var(--cyan), var(--blue));
-    box-shadow: 0 0 24px rgba(0,255,200,0.28);
-    animation: pulseGlow 2s infinite alternate;
-}
-
-@keyframes pulseGlow {
-    from { box-shadow: 0 0 12px rgba(0,255,200,0.18); transform: translateY(0); }
-    to { box-shadow: 0 0 26px rgba(0,255,200,0.52); transform: translateY(-1px); }
-}
-
-.brand-text h2 {
-    font-size: 1.05rem;
-    font-weight: 800;
-    line-height: 1.1;
-}
-
-.brand-text p {
-    font-size: 0.84rem;
-    color: var(--muted);
-    margin-top: 3px;
-}
-
-.header-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.btn {
-    border: none;
-    cursor: pointer;
-    font-weight: 800;
-    padding: 12px 18px;
-    border-radius: 999px;
-    transition: 0.25s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.btn-primary {
-    background: linear-gradient(90deg, var(--cyan), var(--blue));
-    color: #000;
-    box-shadow: 0 0 22px rgba(0, 255, 200, 0.22);
-}
-
-.btn-secondary {
-    background: rgba(255,255,255,0.05);
-    color: var(--text);
-    border: 1px solid rgba(255,255,255,0.08);
-}
-
-.btn-outline {
-    background: transparent;
-    color: var(--text);
-    border: 1px solid rgba(255,255,255,0.12);
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 24px rgba(0,255,200,0.18);
-}
-
-.btn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.grid {
-    display: grid;
-    grid-template-columns: 1.25fr 0.75fr;
-    gap: 18px;
-    align-items: start;
-}
-
-.card {
-    background: rgba(15, 23, 34, 0.88);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(14px);
-}
-
-.card-pad {
-    padding: 22px;
-}
-
-.section-title {
-    font-size: 1.15rem;
-    font-weight: 800;
-    margin-bottom: 12px;
-}
-
-.section-subtitle {
-    color: var(--muted);
-    font-size: 0.92rem;
-    line-height: 1.7;
-    margin-bottom: 16px;
-}
-
-.input {
-    width: 100%;
-    padding: 13px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(0,0,0,0.42);
-    color: var(--text);
-    outline: none;
-    margin-bottom: 14px;
-}
-
-.input:focus {
-    border-color: rgba(0,255,200,0.45);
-    box-shadow: 0 0 0 3px rgba(0,255,200,0.08);
-}
-
-.row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-}
-
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.04);
-    color: var(--text);
-    font-size: 0.8rem;
-    font-weight: 700;
-}
-
-.badge.ok { border-color: rgba(98,255,143,0.22); color: var(--green); }
-.badge.warn { border-color: rgba(255,205,77,0.22); color: var(--yellow); }
-.badge.err { border-color: rgba(255,107,107,0.22); color: var(--red); }
-
-.scan-toolbar {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-top: 16px;
-}
-
-.progress-wrap {
-    width: 100%;
-    margin-top: 16px;
-    display: none;
-}
-
-.progress {
-    width: 100%;
-    height: 10px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.08);
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, var(--cyan), var(--blue));
-    transition: width 0.25s ease;
-}
-
-.progress-meta {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 8px;
-    color: var(--muted);
-    font-size: 0.84rem;
-}
-
-.scanner-box {
-    margin-top: 8px;
-    display: grid;
-    gap: 12px;
-}
-
-.scanner-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-}
-
-.scanner-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 14px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.07);
-    transition: 0.2s ease;
-    cursor: pointer;
-}
-
-.scanner-option:hover {
-    transform: translateY(-2px);
-    border-color: rgba(0,255,200,0.2);
-    box-shadow: 0 0 18px rgba(0,255,200,0.08);
-}
-
-.scanner-option input {
-    margin-top: 4px;
-    accent-color: var(--cyan);
-}
-
-.scanner-option .name {
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.scanner-option .meta {
-    margin-top: 4px;
-    color: var(--muted);
-    font-size: 0.8rem;
-    line-height: 1.45;
-}
-
-.param-block {
-    margin-top: 14px;
-    padding: 16px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.03);
-    border: 1px dashed rgba(255,255,255,0.09);
-}
-
-.param-block h4 {
-    font-size: 0.95rem;
-    font-weight: 800;
-    margin-bottom: 10px;
-}
-
-.param-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-}
-
-.param-item {
-    display: grid;
-    gap: 6px;
-}
-
-.param-item label {
-    color: var(--muted);
-    font-size: 0.8rem;
-    font-weight: 700;
-}
-
-.helper {
-    color: var(--muted);
-    font-size: 0.88rem;
-    line-height: 1.6;
-    padding: 10px 2px 0;
-}
-
-.sidebar {
-    display: grid;
-    gap: 18px;
-}
-
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
-.stat {
-    padding: 14px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-}
-
-.stat .label {
-    color: var(--muted);
-    font-size: 0.8rem;
-    margin-bottom: 8px;
-}
-
-.stat .value {
-    font-size: 1.25rem;
-    font-weight: 800;
-}
-
-.chart-card canvas {
-    width: 100% !important;
-    height: 240px !important;
-}
-
-.logs pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin-top: 10px;
-    background: rgba(0,0,0,0.55);
-    border: 1px solid rgba(255,255,255,0.08);
-    padding: 14px;
-    border-radius: 16px;
-    min-height: 220px;
-    max-height: 340px;
-    overflow: auto;
-    color: #d9f7ee;
-}
-
-.results-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 12px;
-    overflow: hidden;
-}
-
-.results-table th,
-.results-table td {
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding: 12px 10px;
-    text-align: left;
-    vertical-align: top;
-}
-
-.results-table th {
-    color: var(--muted);
-    font-size: 0.84rem;
-    font-weight: 800;
-    background: rgba(255,255,255,0.03);
-}
-
-.results-table tbody tr:hover {
-    background: rgba(255,255,255,0.03);
-}
-
-.sev-critical { color: #ff4d6d; font-weight: 800; }
-.sev-high { color: var(--red); font-weight: 800; }
-.sev-medium { color: var(--yellow); font-weight: 800; }
-.sev-low { color: var(--green); font-weight: 800; }
-
-.subtle {
-    color: var(--muted);
-    font-size: 0.84rem;
-    line-height: 1.6;
-}
-
-.recent-scans {
-    margin-top: 18px;
-}
-
-.recent-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-.recent-table th,
-.recent-table td {
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding: 12px 10px;
-    text-align: left;
-    font-size: 0.92rem;
-}
-
-.recent-table th {
-    color: var(--muted);
-    font-size: 0.84rem;
-    font-weight: 800;
-    background: rgba(255,255,255,0.03);
-}
-
-.footer-note {
-    margin-top: 18px;
-    padding: 16px 18px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.04);
-    color: var(--muted);
-    border: 1px solid rgba(255,255,255,0.08);
-    line-height: 1.7;
-}
-
-.fade-up {
-    opacity: 0;
-    transform: translateY(18px);
-    transition: 0.35s ease;
-}
-
-.fade-up.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-@media (max-width: 1080px) {
-    .grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 768px) {
-    .container {
-        width: min(100%, calc(100% - 22px));
-        padding: 14px 0 24px;
-    }
-
-    .header {
-        align-items: stretch;
-    }
-
-    .header-actions {
-        width: 100%;
-    }
-
-    .header-actions .btn {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .row {
-        grid-template-columns: 1fr;
-    }
-
-    .stat-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-
-    .scanner-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .card-pad {
-        padding: 18px;
-    }
-}
-
-@media (max-width: 480px) {
-    .header-actions {
-        flex-direction: column;
-    }
-
-    .scan-toolbar .btn {
-        width: 100%;
-    }
-
-    .stat-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .results-table th:nth-child(2),
-    .results-table td:nth-child(2) {
-        max-width: 220px;
-        word-break: break-word;
-    }
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberScan — Security Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0C1929;--card:rgba(24,40,64,0.6);--card-hover:rgba(30,51,82,0.7);--border:rgba(91,141,184,0.18);--border-h:rgba(91,141,184,0.35);--accent:#5B8DB8;--cyan:#67C5E8;--crit:#EF4444;--high:#F97316;--med:#EAB308;--low:#22C55E;--info:#3B82F6;--text:#CBD5E1;--dim:#64748B;--white:#fff}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(91,141,184,0.3);border-radius:3px}
+    .grid-bg{background-image:linear-gradient(rgba(91,141,184,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(91,141,184,0.03) 1px,transparent 1px);background-size:40px 40px}
+
+    /* ─── TOP BAR ─── */
+    .topbar{position:sticky;top:0;z-index:50;background:rgba(12,25,41,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .logo{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:32px;height:32px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center}
+    .logo-icon svg{width:18px;height:18px;color:#fff}
+    .logo-text{font-size:1rem;font-weight:700;color:#fff}
+    .logo-text span{background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .top-actions{display:flex;align-items:center;gap:6px}
+    .tbtn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:0.78rem;font-weight:600;border:none;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .tbtn svg{width:15px;height:15px;flex-shrink:0}
+    .tbtn-pri{background:linear-gradient(135deg,var(--accent),var(--cyan));color:#fff;box-shadow:0 3px 10px rgba(91,141,184,0.3)}
+    .tbtn-pri:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(91,141,184,0.4)}
+    .tbtn-sec{background:rgba(255,255,255,0.05);color:#E2E8F0;border:1px solid rgba(255,255,255,0.1)}
+    .tbtn-sec:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2)}
+    .tbtn-icon{padding:7px;border-radius:7px;background:none;border:1px solid rgba(255,255,255,0.05);color:#94A3B8;cursor:pointer;transition:all .2s;position:relative}
+    .tbtn-icon:hover{background:rgba(255,255,255,0.05);color:#E2E8F0}
+    .tbtn-icon svg{width:17px;height:17px}
+    .sep{width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 2px}
+    .notif-dot{position:absolute;top:3px;right:3px;width:7px;height:7px;background:var(--crit);border-radius:50%;border:1.5px solid var(--bg)}
+
+    /* ─── SITE SWITCHER BAR ─── */
+    .sites-bar{padding:16px 24px 0;max-width:1400px;margin:0 auto}
+    .sites-bar-label{font-size:0.72rem;color:var(--dim);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em}
+    .sites-list{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+    .site-chip{display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;transition:all .2s;white-space:nowrap;font-size:0.8rem;color:#94A3B8;font-weight:500}
+    .site-chip:hover{border-color:var(--border-h);color:#E2E8F0;background:var(--card-hover)}
+    .site-chip.active{background:rgba(91,141,184,0.15);border-color:rgba(91,141,184,0.4);color:var(--cyan);font-weight:600}
+    .site-chip .chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .site-chip .chip-count{font-size:0.68rem;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;color:var(--dim)}
+    .site-chip.active .chip-count{background:rgba(91,141,184,0.2);color:var(--accent)}
+    .chip-status{font-size:0.65rem;font-weight:600}
+
+    /* ─── MAIN ─── */
+    .main{max-width:1400px;margin:0 auto;padding:16px 24px 32px}
+
+    /* ─── STATS ROW ─── */
+    .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:all .25s}
+    .stat:hover{border-color:var(--border-h);background:var(--card-hover)}
+    .stat-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .stat-icon{width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center}
+    .stat-icon svg{width:16px;height:16px}
+    .stat-label{font-size:0.7rem;color:var(--dim);font-weight:500}
+    .stat-val{font-size:1.5rem;font-weight:700;color:#fff}
+    .stat-sub{font-size:0.68rem;color:var(--dim);margin-top:2px}
+
+    /* ─── CONTENT GRID ─── */
+    .grid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;transition:all .25s}
+    .card:hover{border-color:var(--border-h)}
+    .card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .card-title{font-size:0.85rem;font-weight:600;color:#fff}
+    .card-sub{font-size:0.68rem;color:var(--dim);margin-top:1px}
+    .card-btns{display:flex;gap:4px}
+    .card-btn{padding:4px 9px;border-radius:5px;font-size:0.68rem;font-weight:500;border:none;cursor:pointer;transition:all .2s}
+    .card-btn-on{background:rgba(91,141,184,0.15);color:var(--accent)}
+    .card-btn-off{background:none;color:#94A3B8}
+    .card-btn-off:hover{background:rgba(255,255,255,0.05)}
+
+    /* ─── BAR CHART ─── */
+    .bars{display:flex;align-items:flex-end;gap:16px;height:150px;padding:0 8px}
+    .bar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+    .bar-val{font-size:0.72rem;font-weight:600}
+    .bar-fill{width:100%;border-radius:5px 5px 0 0;opacity:0.85;transition:opacity .3s;cursor:pointer;position:relative}
+    .bar-fill:hover{opacity:1}
+    .bar-lbl{font-size:0.65rem;color:var(--dim);margin-top:3px}
+
+    /* ─── DONUT ─── */
+    .donut-wrap{display:flex;align-items:center;gap:16px}
+    .donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .donut-total{font-size:1.2rem;font-weight:700;color:#fff}
+    .donut-lbl{font-size:0.65rem;color:var(--dim)}
+    .legend{display:flex;flex-direction:column;gap:6px}
+    .leg-item{display:flex;align-items:center;gap:7px}
+    .leg-dot{width:8px;height:8px;border-radius:50%}
+    .leg-name{font-size:0.68rem;color:var(--text);width:48px}
+    .leg-val{font-size:0.68rem;font-weight:600;color:#E2E8F0}
+
+    /* ─── FINDINGS TABLE ─── */
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl th{text-align:left;font-size:0.68rem;font-weight:500;color:var(--dim);padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .tbl td{padding:8px 10px 8px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.78rem;vertical-align:middle}
+    .tbl tr:hover td{background:rgba(91,141,184,0.05)}
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:0.65rem;font-weight:500}
+    .b-crit{background:rgba(239,68,68,0.15);color:#EF4444;border:1px solid rgba(239,68,68,0.3)}
+    .b-high{background:rgba(249,115,22,0.15);color:#F97316;border:1px solid rgba(249,115,22,0.3)}
+    .b-med{background:rgba(234,179,8,0.15);color:#EAB308;border:1px solid rgba(234,179,8,0.3)}
+    .b-low{background:rgba(34,197,94,0.15);color:#22C55E;border:1px solid rgba(34,197,94,0.3)}
+    .b-info{background:rgba(59,130,246,0.15);color:#3B82F6;border:1px solid rgba(59,130,246,0.3)}
+
+    /* ─── SEVERITY BAR ─── */
+    .sev-bar-wrap{height:6px;border-radius:3px;background:rgba(255,255,255,0.05);overflow:hidden;display:flex;margin-top:8px}
+    .sev-seg{height:100%;transition:width .5s ease-out}
+
+    /* ─── PROGRESS RING ─── */
+    .ring-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
+    .ring-text{position:absolute;font-size:1.1rem;font-weight:700;color:#fff}
+    .ring-lbl{position:absolute;bottom:-2px;font-size:0.55rem;color:var(--dim)}
+
+    /* ─── MODAL ─── */
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(12,25,41,0.85);z-index:100;justify-content:center;align-items:center}
+    .modal-bg.open{display:flex}
+    .modal{background:rgba(30,51,82,0.95);border:1px solid var(--border-h);border-radius:14px;padding:24px;max-width:500px;width:92%;max-height:80vh;overflow-y:auto}
+    .modal-title{font-size:1rem;font-weight:700;color:#fff;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+    .modal-close{background:none;border:none;color:#94A3B8;cursor:pointer;font-size:1.4rem;line-height:1;padding:2px}
+    .modal-close:hover{color:#fff}
+    .input-field{background:rgba(24,40,64,0.7);border:1px solid var(--border);border-radius:7px;padding:9px 12px;color:#E2E8F0;font-size:0.82rem;width:100%;outline:none;transition:border .2s}
+    .input-field:focus{border-color:var(--accent)}
+    .input-field::placeholder{color:#475569}
+    .select-field{background:rgba(24,40,64,0.7);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:#E2E8F0;font-size:0.78rem;outline:none;cursor:pointer;width:100%}
+    .select-field:focus{border-color:var(--accent)}
+    .form-label{font-size:0.75rem;color:var(--dim);display:block;margin-bottom:5px;font-weight:500}
+    .form-row{margin-bottom:14px}
+    .cb-group{display:flex;flex-wrap:wrap;gap:6px}
+    .cb-item{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;background:rgba(24,40,64,0.5);border:1px solid var(--border);cursor:pointer;transition:all .2s;font-size:0.75rem;color:#94A3B8}
+    .cb-item:hover{border-color:var(--border-h);color:#E2E8F0}
+    .cb-item.checked{background:rgba(91,141,184,0.15);border-color:rgba(91,141,184,0.4);color:var(--accent)}
+
+    /* ─── TOAST ─── */
+    .toast-box{position:fixed;top:70px;right:20px;z-index:200;display:flex;flex-direction:column;gap:6px}
+    .toast{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;background:rgba(30,51,82,0.95);border:1px solid var(--border-h);color:#E2E8F0;font-size:0.78rem;box-shadow:0 6px 20px rgba(0,0,0,0.3);min-width:250px;animation:slideD .3s ease-out}
+    @keyframes slideD{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .anim-up{animation:fadeInUp .5s ease-out forwards;opacity:0}
+    .spinner{animation:spin 1s linear infinite}
+
+    /* ─── DROPDOWN ─── */
+    .dropdown{position:relative}
+    .dd-panel{display:none;position:absolute;top:calc(100% + 6px);right:0;background:rgba(30,51,82,0.97);border:1px solid var(--border-h);border-radius:9px;width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:60;animation:slideD .2s ease-out}
+    .dd-panel.open{display:block}
+    .dd-head{padding:12px 14px 8px;font-size:0.8rem;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center}
+    .dd-clear{font-size:0.68rem;color:var(--accent);background:none;border:none;cursor:pointer}
+    .dd-item{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:default;transition:background .15s;display:flex;align-items:center;gap:9px}
+    .dd-item:last-child{border-bottom:none}
+    .dd-item-title{font-size:0.75rem;color:#E2E8F0;font-weight:500}
+    .dd-item-desc{font-size:0.65rem;color:var(--dim);margin-top:1px}
+
+    /* ─── FOOTER ─── */
+    .footer{border-top:1px solid var(--border);padding:16px;text-align:center;color:#475569;font-size:0.68rem;max-width:1400px;margin:0 auto}
+
+    /* ─── RESPONSIVE ─── */
+    @media(max-width:1024px){.stats{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
+    @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}.topbar{padding:0 12px}.main{padding:12px}.sites-list{gap:6px}.site-chip{padding:6px 12px;font-size:0.75rem}}
+  </style>
 </head>
+<body class="grid-bg">
 
-<body>
-<div class="container">
+<div class="toast-box" id="toastBox"></div>
 
-    <div class="header">
-        <div class="brand">
-            <div class="brand-icon">CS</div>
-            <div>
-                <div style="font-size:1.05rem;font-weight:800;">CyberScan</div>
-                <div class="subtle">Web Vulnerability Dashboard</div>
-            </div>
-        </div>
-
-        <div class="header-actions">
-            <a href="/history" class="btn btn-secondary">History</a>
-            <a href="/logout" class="btn btn-primary">Logout</a>
-        </div>
+<!-- ═══ TOP BAR ═══ -->
+<nav class="topbar">
+  <div class="logo">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div class="logo-text"><span>Cyber</span><span class="logo-text-w">Scan</span></div>
+  </div>
+  <div class="top-actions">
+    <button class="tbtn tbtn-pri" onclick="openNewScan()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10"/><path d="M12 2a15 15 0 0 0-4 10 15 15 0 0 0 4 10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      New Scan
+    </button>
+    <button class="tbtn tbtn-sec" onclick="openExport()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </button>
+    <div class="sep"></div>
+    <div class="dropdown">
+      <button class="tbtn-icon" onclick="toggleDD(event,'dlPanel')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span class="notif-dot" id="dlDot" style="display:none"></span>
+      </button>
+      <div class="dd-panel" id="dlPanel">
+        <div class="dd-head">Downloads <button class="dd-clear" onclick="clearDls()">Clear all</button></div>
+        <div id="dlList"></div>
+      </div>
     </div>
-
-    <div class="grid">
-        <div class="card card-pad fade-up">
-            <div class="section-title">Start Scan</div>
-            <div class="section-subtitle">
-                Select the vulnerabilities you want to test. Dynamic inputs will appear automatically based on the scanners metadata.
-            </div>
-
-            <input type="text" id="url" class="input" placeholder="https://target.com">
-
-            <div class="row">
-                <div class="stat">
-                    <div class="label">Auth Mode</div>
-                    <div class="value" id="authMode">Session / JWT</div>
-                </div>
-                <div class="stat">
-                    <div class="label">Current Scan ID</div>
-                    <div class="value" id="scanIdLabel">—</div>
-                </div>
-            </div>
-
-            <div class="scan-toolbar">
-                <button id="scanBtn" class="btn btn-primary" type="button" onclick="startScan()">Start Scan</button>
-                <button class="btn btn-outline" type="button" onclick="clearSelection()">Clear Selection</button>
-                <button class="btn btn-outline" type="button" onclick="selectAllScanners()">Select All</button>
-            </div>
-
-            <div class="progress-wrap" id="progressWrap">
-                <div class="progress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                <div class="progress-meta">
-                    <span id="progressLabel">Idle</span>
-                    <span id="scanStatusText">Waiting</span>
-                </div>
-            </div>
-
-            <div style="margin-top:18px;">
-                <div class="section-title" style="margin-bottom:8px;">Vulnerabilities</div>
-                <div class="section-subtitle">Choose what to test on this target.</div>
-                <div id="scannerList" class="scanner-box"></div>
-            </div>
-
-            <div style="margin-top:18px;">
-                <div class="section-title" style="margin-bottom:8px;">Dynamic Inputs</div>
-                <div class="section-subtitle">Fill in extra fields requested by the selected scanners.</div>
-                <div id="dynamicInputs"></div>
-            </div>
-        </div>
-
-        <div class="sidebar">
-            <div class="card card-pad chart-card fade-up">
-                <div class="section-title">Severity Chart</div>
-                <div class="section-subtitle">Live breakdown of findings after each scan.</div>
-                <canvas id="severityChart"></canvas>
-            </div>
-
-            <div class="card card-pad fade-up">
-                <div class="section-title">Quick Stats</div>
-                <div class="stat-grid">
-                    <div class="stat">
-                        <div class="label">Scanners Loaded</div>
-                        <div class="value" id="scannerCount">0</div>
-                    </div>
-                    <div class="stat">
-                        <div class="label">Selected</div>
-                        <div class="value" id="selectedCount">0</div>
-                    </div>
-                    <div class="stat">
-                        <div class="label">Findings</div>
-                        <div class="value" id="findingsCount">0</div>
-                    </div>
-                    <div class="stat">
-                        <div class="label">Token</div>
-                        <div class="value" id="tokenState">No</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="dropdown">
+      <button class="tbtn-icon" onclick="toggleDD(event,'notifPanel')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-dot" id="notifDot"></span>
+      </button>
+      <div class="dd-panel" id="notifPanel">
+        <div class="dd-head">Notifications <button class="dd-clear" onclick="clearNotifs()">Clear all</button></div>
+        <div id="notifList"></div>
+      </div>
     </div>
+  </div>
+</nav>
 
-    <div class="grid" style="margin-top:18px;">
-        <div class="card card-pad logs fade-up">
-            <div class="section-title">Live Scan Logs</div>
-            <div class="section-subtitle">Messages come in real time through Socket.IO.</div>
-            <pre id="logs">Waiting for scan...</pre>
+<!-- ═══ SITE SWITCHER ═══ -->
+<div class="sites-bar">
+  <div class="sites-bar-label">Tested Websites</div>
+  <div class="sites-list" id="sitesList"></div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+  <!-- Selected site info -->
+  <div id="siteHeader" style="margin-bottom:16px;"></div>
+
+  <!-- Stats -->
+  <div class="stats" id="statsRow"></div>
+
+  <!-- Content -->
+  <div class="grid">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Severity Bar Chart -->
+      <div class="card anim-up" style="animation-delay:.1s">
+        <div class="card-h"><div><div class="card-title">Vulnerability Distribution</div><div class="card-sub">Severity breakdown</div></div></div>
+        <div class="bars" id="barChart"></div>
+      </div>
+      <!-- Findings List -->
+      <div class="card anim-up" style="animation-delay:.2s">
+        <div class="card-h"><div><div class="card-title">Detailed Findings</div><div class="card-sub" id="findingsCount"></div></div>
+          <div class="card-btns">
+            <button class="card-btn card-btn-on" onclick="filterFindings('all')">All</button>
+            <button class="card-btn card-btn-off" onclick="filterFindings('Critical')">Critical</button>
+            <button class="card-btn card-btn-off" onclick="filterFindings('High')">High</button>
+            <button class="card-btn card-btn-off" onclick="filterFindings('Medium')">Medium</button>
+            <button class="card-btn card-btn-off" onclick="filterFindings('Low')">Low</button>
+            <button class="card-btn card-btn-off" onclick="filterFindings('Info')">Info</button>
+          </div>
         </div>
-
-        <div class="card card-pad fade-up">
-            <div class="section-title">Results</div>
-            <div class="section-subtitle">Structured results are shown here after the scan finishes.</div>
-
-            <div style="overflow:auto;">
-                <table class="results-table">
-                    <thead>
-                        <tr>
-                            <th>Vulnerability</th>
-                            <th>Result</th>
-                            <th>Severity</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results">
-                        <tr>
-                            <td colspan="3" class="subtle">No results yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <div style="overflow-x:auto"><table class="tbl" id="findingsTbl"></table></div>
+      </div>
     </div>
-
-    <div class="card card-pad recent-scans fade-up">
-        <div class="section-title">Recent Scans</div>
-        <div class="section-subtitle">
-            Pulled from your account history. If you are using JWT mode, the dashboard reads the token from localStorage.
-        </div>
-
-        <div style="overflow:auto;">
-            <table class="recent-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Target</th>
-                        <th>Status</th>
-                        <th>Findings</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody id="recentScans">
-                    <tr>
-                        <td colspan="5" class="subtle">No scans loaded yet.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Donut -->
+      <div class="card anim-up" style="animation-delay:.15s">
+        <div class="card-title" style="margin-bottom:14px">Severity Breakdown</div>
+        <div id="donutChart"></div>
+      </div>
+      <!-- Security Score -->
+      <div class="card anim-up" style="animation-delay:.25s">
+        <div class="card-title" style="margin-bottom:14px">Security Score</div>
+        <div id="scoreRing" style="display:flex;align-items:center;justify-content:center;gap:20px"></div>
+      </div>
+      <!-- Scan Info -->
+      <div class="card anim-up" style="animation-delay:.3s">
+        <div class="card-title" style="margin-bottom:12px">Scan Information</div>
+        <div id="scanInfo"></div>
+      </div>
     </div>
+  </div>
+</div>
 
-    <div class="footer-note">
-        This dashboard is wired for session login and JWT login. Dynamic scanner inputs are generated from the scanners metadata returned by <code>/api/scanners</code>, and live logs/results are streamed through Socket.IO.
+<div class="footer"><p>CyberScan v2.0 — Vulnerability Dashboard &copy; 2026 | Beni Suef National University</p></div>
+
+<!-- ═══ NEW SCAN MODAL ═══ -->
+<div class="modal-bg" id="newScanModal">
+  <div class="modal">
+    <div class="modal-title">New Vulnerability Scan <button class="modal-close" onclick="closeM('newScanModal')">&times;</button></div>
+    <div class="form-row"><label class="form-label">Target URL</label><input type="text" class="input-field" id="scanUrl" placeholder="https://example.com" /></div>
+    <div class="form-row"><label class="form-label">Vulnerability Scanners</label><div class="cb-group" id="scanCbGroup"></div></div>
+    <div class="form-row"><label class="form-label">Scan Mode</label><select class="select-field" id="scanMode"><option value="quick">Quick Scan</option><option value="standard" selected>Standard Scan</option><option value="deep">Deep Scan</option></select></div>
+    <div style="display:flex;gap:8px"><button class="tbtn tbtn-pri" onclick="startScan()" style="flex:1;justify-content:center">Start Scan</button><button class="tbtn tbtn-sec" onclick="resetScanForm()">Reset</button></div>
+  </div>
+</div>
+
+<!-- ═══ EXPORT MODAL ═══ -->
+<div class="modal-bg" id="exportModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">Export Report <button class="modal-close" onclick="closeM('exportModal')">&times;</button></div>
+    <div class="form-row">
+      <label class="form-label">Report for which website?</label>
+      <select class="select-field" id="exportTarget" onchange="exportTargetChanged(this.value)"></select>
     </div>
-
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="tbtn tbtn-sec" style="justify-content:flex-start;padding:12px 14px" onclick="doExport('pdf')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" style="width:18px;height:18px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div style="text-align:left"><div style="color:#fff;font-weight:600">Export as PDF</div><div style="font-size:0.68rem;color:var(--dim)">Professional report for this website</div></div>
+      </button>
+      <button class="tbtn tbtn-sec" style="justify-content:flex-start;padding:12px 14px" onclick="doExport('json')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#EAB308" stroke-width="2" style="width:18px;height:18px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div style="text-align:left"><div style="color:#fff;font-weight:600">Export as JSON</div><div style="font-size:0.68rem;color:var(--dim)">Machine-readable scan data</div></div>
+      </button>
+      <button class="tbtn tbtn-sec" style="justify-content:flex-start;padding:12px 14px" onclick="doExport('csv')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2" style="width:18px;height:18px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div style="text-align:left"><div style="color:#fff;font-weight:600">Export as CSV</div><div style="font-size:0.68rem;color:var(--dim)">Spreadsheet format</div></div>
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>
-let scannerSpecs = [];
-let socket = null;
-let currentScanId = null;
-let currentResults = [];
-let chartInstance = null;
-let scanActive = false;
-let progressValue = 0;
-let progressTimer = null;
+// ══════════════════════════════════════════════════════════════════════════════
+// REAL PROJECT DATA
+// ══════════════════════════════════════════════════════════════════════════════
 
-const fallbackScanners = [
-    { name: "blind_xss", inputs: ["param"], meta: { name: "Blind XSS", severity: "High", description: "Blind XSS payload testing" } },
-    { name: "clickjacking_scanner", inputs: [], meta: { name: "Clickjacking", severity: "Medium", description: "Frame protection checks" } },
-    { name: "cors_scanner", inputs: [], meta: { name: "CORS", severity: "High", description: "CORS policy testing" } },
-    { name: "csrf_scanner", inputs: [], meta: { name: "CSRF", severity: "Medium", description: "CSRF protection checks" } },
-    { name: "dir_scan", inputs: [], meta: { name: "Directory Listing", severity: "Medium", description: "Exposed directories check" } },
-    { name: "file_upload", inputs: ["upload_url"], meta: { name: "File Upload", severity: "High", description: "Upload abuse testing" } },
-    { name: "graphql_scanner", inputs: ["endpoint"], meta: { name: "GraphQL", severity: "Medium", description: "Introspection testing" } },
-    { name: "host_header_scanner", inputs: [], meta: { name: "Host Header Injection", severity: "High", description: "Host header poisoning" } },
-    { name: "html_injection", inputs: ["param"], meta: { name: "HTML Injection", severity: "Medium", description: "HTML reflection" } },
-    { name: "idor", inputs: ["param"], meta: { name: "IDOR / BOLA", severity: "High", description: "ID manipulation testing" } },
-    { name: "info_scan", inputs: [], meta: { name: "Information Disclosure", severity: "Medium", description: "Sensitive header/body exposure" } },
-    { name: "open_redirect_scanner", inputs: [], meta: { name: "Open Redirect", severity: "High", description: "Redirect abuse testing" } },
-    { name: "path_traversal", inputs: ["param"], meta: { name: "Path Traversal", severity: "High", description: "Traversal payload testing" } },
-    { name: "rate_limit", inputs: [], meta: { name: "Rate Limiting", severity: "Medium", description: "Brute-force protection testing" } },
-    { name: "sql_injection", inputs: ["param"], meta: { name: "SQL Injection", severity: "High", description: "Boolean / time / error-based SQLi" } },
-    { name: "ssrf", inputs: ["param"], meta: { name: "SSRF", severity: "High", description: "Server-side request forgery testing" } },
-    { name: "stored_xss", inputs: ["submit_path", "param_name"], meta: { name: "Stored XSS", severity: "Critical", description: "Persistent XSS testing" } },
-    { name: "weak_password", inputs: ["login_url", "username_field", "password_field"], meta: { name: "Weak Password", severity: "Critical", description: "Brute-force / lockout testing" } },
-    { name: "xss", inputs: ["param"], meta: { name: "Reflected XSS", severity: "High", description: "Reflected XSS payload testing" } },
+let scans = [];
+
+const modules = [
+  'Auth Scanner',
+  'Blind XSS',
+  'Clickjacking Scanner',
+  'CORS Scanner',
+  'CSRF Scan',
+  'Dir Scan',
+  'File Upload',
+  'GraphQL Scanner',
+  'Host Header Scanner',
+  'HTML Injection',
+  'IDOR',
+  'Info Scan',
+  'Open Redirect Scanner',
+  'Path Traversal',
+  'Rate Limit',
+  'SQL Injection',
+  'SSRF',
+  'SSRF Scanner',
+  'Stored XSS Scanner',
+  'Weak Password Scanner',
+  'XSS'
 ];
 
-function escapeHTML(value) {
-    const div = document.createElement("div");
-    div.textContent = value == null ? "" : String(value);
-    return div.innerHTML;
-}
+const sevC = {
+  Critical:'#EF4444',
+  High:'#F97316',
+  Medium:'#EAB308',
+  Low:'#22C55E',
+  Info:'#3B82F6'
+};
 
-function getToken() {
-    return localStorage.getItem("access_token") || localStorage.getItem("token") || "";
-}
+const sevB = {
+  Critical:'b-crit',
+  High:'b-high',
+  Medium:'b-med',
+  Low:'b-low',
+  Info:'b-info'
+};
 
-function authHeaders(json = true) {
-    const headers = {};
+const statusIcon = {
+  completed:'✅',
+  running:'🔄',
+  failed:'❌'
+};
 
-    if (json) {
-        headers["Content-Type"] = "application/json";
+let activeSite = 'all';
+let findingsFilter = 'all';
+let scanInProgress = false;
+let scanTimer = null;
+let notifs = [];
+let dls = [];
+let dlIdCtr = 0;
+let exportTarget = 'all';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LOAD REAL DATA FROM FLASK BACKEND
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function loadDashboardData() {
+  try {
+
+    const response = await fetch('/api/history');
+
+    const data = await response.json();
+
+    if (!data.scans) {
+      console.error('No scans found');
+      return;
     }
 
-    const token = getToken();
-    if (token) {
-        headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-        document.getElementById("authMode").textContent = "JWT Token";
-        document.getElementById("tokenState").textContent = "Yes";
-    } else {
-        document.getElementById("authMode").textContent = "Session";
-        document.getElementById("tokenState").textContent = "No";
+    scans = data.scans.map(scan => ({
+
+      id: `CYBERSCAN-${scan.id}`,
+
+      target: scan.target || 'Unknown Target',
+
+      status: scan.status || 'completed',
+
+      created_at: scan.created_at || 'Unknown',
+
+      results: parseResults(scan.results)
+
+    }));
+
+    renderAll();
+
+  } catch (err) {
+
+    console.error('Dashboard loading error:', err);
+
+    toast('Failed to load dashboard data', 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PARSE RESULTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function parseResults(results) {
+
+  try {
+
+    if (typeof results === 'string') {
+      results = JSON.parse(results);
     }
 
-    return headers;
-}
-
-function setProgress(value, label) {
-    progressValue = Math.max(0, Math.min(100, value));
-    document.getElementById("progressBar").style.width = `${progressValue}%`;
-    document.getElementById("progressLabel").textContent = label || `${progressValue}%`;
-}
-
-function startProgressTicker() {
-    clearInterval(progressTimer);
-    progressTimer = setInterval(() => {
-        if (!scanActive) {
-            clearInterval(progressTimer);
-            return;
-        }
-
-        if (progressValue < 90) {
-            setProgress(progressValue + 5, "Scanning...");
-        }
-    }, 650);
-}
-
-function resetUIForScan() {
-    scanActive = true;
-    currentResults = [];
-    currentScanId = null;
-
-    document.getElementById("scanIdLabel").textContent = "…";
-    document.getElementById("scanStatusText").textContent = "Running";
-    document.getElementById("findingsCount").textContent = "0";
-
-    document.getElementById("logs").textContent = "";
-    document.getElementById("results").innerHTML = `
-        <tr><td colspan="3" class="subtle">Scan running...</td></tr>
-    `;
-
-    setProgress(8, "Queued");
-    document.getElementById("progressWrap").style.display = "block";
-
-    if (chartInstance) {
-        chartInstance.destroy();
-        chartInstance = null;
+    if (!Array.isArray(results)) {
+      return [];
     }
 
-    document.getElementById("severityChart").getContext("2d").clearRect(0, 0, 9999, 9999);
+    return results.map(result => ({
+
+      name: formatScannerName(result.name || 'Unknown Scanner'),
+
+      result: result.result || 'Unknown',
+
+      severity: normalizeSeverity(result.severity),
+
+      cve: 'N/A',
+
+      owasp: mapOWASP(result.name || ''),
+
+      cvss: calculateCVSS(result.severity),
+
+      endpoint: extractEndpoint(result.result),
+
+      param: 'N/A',
+
+      detail: result.result || 'No details available'
+
+    }));
+
+  } catch (e) {
+
+    console.error('Result parse error:', e);
+
+    return [];
+  }
 }
 
-function appendLog(message) {
-    if (!scanActive) return;
+// ══════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
 
-    const pre = document.getElementById("logs");
-    pre.textContent += `${message}\n`;
-    pre.scrollTop = pre.scrollHeight;
+function normalizeSeverity(sev) {
 
-    if (progressValue < 88) {
-        setProgress(progressValue + 6, "Scanning...");
-    }
+  if (!sev) return 'Low';
+
+  sev = sev.toLowerCase();
+
+  if (sev.includes('critical')) return 'Critical';
+
+  if (sev.includes('high')) return 'High';
+
+  if (sev.includes('medium')) return 'Medium';
+
+  if (sev.includes('info')) return 'Info';
+
+  return 'Low';
 }
 
-function getSelectedScanners() {
-    return [...document.querySelectorAll(".scanner-check:checked")].map(cb => cb.value);
+function calculateCVSS(severity) {
+
+  severity = normalizeSeverity(severity);
+
+  switch (severity) {
+
+    case 'Critical':
+      return 9.8;
+
+    case 'High':
+      return 7.5;
+
+    case 'Medium':
+      return 5.3;
+
+    case 'Low':
+      return 3.1;
+
+    case 'Info':
+      return 0.0;
+
+    default:
+      return 0;
+  }
 }
 
-function beautifyName(name) {
-    const spec = scannerSpecs.find(s => s.name === name);
-    if (spec && spec.meta && spec.meta.name) return spec.meta.name;
-    return name
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, c => c.toUpperCase());
+function formatScannerName(name) {
+
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
 }
 
-function scannerSeverityBadge(spec) {
-    const sev = (spec?.meta?.severity || "Low").toLowerCase();
-    return `<span class="badge ${sev === "critical" ? "err" : sev === "high" ? "err" : sev === "medium" ? "warn" : "ok"}">${escapeHTML(spec?.meta?.severity || "Low")}</span>`;
+function mapOWASP(name) {
+
+  name = name.toLowerCase();
+
+  if (name.includes('xss') || name.includes('html') || name.includes('sql') || name.includes('injection'))
+    return 'A03:2021-Injection';
+
+  if (name.includes('redirect') || name.includes('path') || name.includes('traversal') || name.includes('idor') || name.includes('file_upload') || name.includes('file upload'))
+    return 'A01:2021-Broken Access Control';
+
+  if (name.includes('cors') || name.includes('clickjacking') || name.includes('host') || name.includes('info') || name.includes('graphql') || name.includes('dir'))
+    return 'A05:2021-Security Misconfiguration';
+
+  if (name.includes('ssrf'))
+    return 'A10:2021-SSRF';
+
+  if (name.includes('auth') || name.includes('weak_password') || name.includes('weak password') || name.includes('rate_limit') || name.includes('rate limit'))
+    return 'A07:2021-Identification Failures';
+
+  if (name.includes('csrf'))
+    return 'A01:2021-Broken Access Control';
+
+  return 'A05:2021-Security Misconfiguration';
 }
 
-function renderScannerOptions() {
-    const container = document.getElementById("scannerList");
-    container.innerHTML = "";
+function extractEndpoint(text) {
 
-    if (!scannerSpecs.length) {
-        container.innerHTML = `<div class="helper">No scanners available.</div>`;
-        return;
-    }
+  if (!text) return '/';
 
-    scannerSpecs.forEach(spec => {
-        const card = document.createElement("label");
-        card.className = "scanner-option";
+  const match = text.match(/\/[a-zA-Z0-9\-\/\._]+/);
 
-        const desc = (spec.meta && spec.meta.description) ? spec.meta.description : "No description provided.";
-
-        card.innerHTML = `
-            <input type="checkbox" class="scanner-check" value="${escapeHTML(spec.name)}">
-            <div style="flex:1; min-width:0;">
-                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                    <div class="name">${escapeHTML(beautifyName(spec.name))}</div>
-                    ${scannerSeverityBadge(spec)}
-                </div>
-                <div class="meta">${escapeHTML(desc)}</div>
-            </div>
-        `;
-
-        container.appendChild(card);
-    });
-
-    document.querySelectorAll(".scanner-check").forEach(cb => {
-        cb.addEventListener("change", renderDynamicInputs);
-    });
-
-    updateCounts();
-    renderDynamicInputs();
+  return match ? match[0] : '/';
 }
 
-function renderDynamicInputs() {
-    const container = document.getElementById("dynamicInputs");
-    container.innerHTML = "";
+// ══════════════════════════════════════════════════════════════════════════════
+//  SITE LIST
+// ══════════════════════════════════════════════════════════════════════════════
 
-    const selected = getSelectedScanners();
-    updateCounts();
-
-    if (!selected.length) {
-        container.innerHTML = `<div class="helper">Select one or more scanners to reveal required inputs.</div>`;
-        return;
-    }
-
-    const selectedSpecs = scannerSpecs.filter(s => selected.includes(s.name));
-    let anyInputs = false;
-
-    selectedSpecs.forEach(spec => {
-        const inputs = Array.isArray(spec.inputs) ? spec.inputs : [];
-
-        if (!inputs.length) return;
-        anyInputs = true;
-
-        const block = document.createElement("div");
-        block.className = "param-block";
-
-        const title = document.createElement("h4");
-        title.textContent = `${beautifyName(spec.name)} inputs`;
-        block.appendChild(title);
-
-        const grid = document.createElement("div");
-        grid.className = "param-grid";
-
-        inputs.forEach(inp => {
-            const item = document.createElement("div");
-            item.className = "param-item";
-
-            const label = document.createElement("label");
-            label.textContent = inp;
-
-            const field = document.createElement("input");
-            field.type = "text";
-            field.className = "input";
-            field.placeholder = `${spec.name} · ${inp}`;
-            field.name = `${spec.name}_${inp}`;
-            field.dataset.scanner = spec.name;
-            field.dataset.param = inp;
-            field.style.marginBottom = "0";
-
-            item.appendChild(label);
-            item.appendChild(field);
-            grid.appendChild(item);
-        });
-
-        block.appendChild(grid);
-        container.appendChild(block);
-    });
-
-    if (!anyInputs) {
-        container.innerHTML = `<div class="helper">The selected scanners do not require extra inputs.</div>`;
-    }
+function getUniqueTargets() {
+  const seen = new Map();
+  scans.forEach(s => { if (!seen.has(s.target)) seen.set(s.target, s); });
+  return [...seen.entries()].map(([target, s]) => ({target, status:s.status, count: scans.filter(x=>x.target===target).reduce((a,x)=>a+x.results.length,0)}));
 }
 
-function updateCounts() {
-    document.getElementById("scannerCount").textContent = scannerSpecs.length;
-    document.getElementById("selectedCount").textContent = getSelectedScanners().length;
-    document.getElementById("findingsCount").textContent = currentResults.length;
+function renderSites() {
+  const targets = getUniqueTargets();
+  const el = document.getElementById('sitesList');
+  let html = `<div class="site-chip ${activeSite==='all'?'active':''}" onclick="switchSite('all')">
+    <span class="chip-dot" style="background:var(--cyan)"></span>All Sites
+    <span class="chip-count">${scans.reduce((a,s)=>a+s.results.length,0)}</span>
+  </div>`;
+  targets.forEach(t => {
+    const dotColor = t.status==='completed'?'var(--low)':t.status==='running'?'var(--accent)':'var(--crit)';
+    html += `<div class="site-chip ${activeSite===t.target?'active':''}" onclick="switchSite('${t.target}')">
+      <span class="chip-dot" style="background:${dotColor}"></span>${t.target}
+      <span class="chip-count">${t.count}</span>
+    </div>`;
+  });
+  el.innerHTML = html;
 }
 
-function selectAllScanners() {
-    document.querySelectorAll(".scanner-check").forEach(cb => {
-        cb.checked = true;
-    });
-    renderDynamicInputs();
+function switchSite(target) {
+  activeSite = target;
+  findingsFilter = 'all';
+  renderAll();
 }
 
-function clearSelection() {
-    document.querySelectorAll(".scanner-check").forEach(cb => {
-        cb.checked = false;
-    });
+// ══════════════════════════════════════════════════════════════════════════════
+//  GET DATA FOR ACTIVE SITE
+// ══════════════════════════════════════════════════════════════════════════════
 
-    const inputs = document.querySelectorAll("#dynamicInputs input");
-    inputs.forEach(i => i.value = "");
-
-    renderDynamicInputs();
+function getSiteData() {
+  const siteScans = activeSite === 'all' ? scans : scans.filter(s => s.target === activeSite);
+  const allResults = siteScans.flatMap(s => s.results);
+  const sev = {Critical:0,High:0,Medium:0,Low:0,Info:0};
+  allResults.forEach(r => sev[r.severity]++);
+  const total = allResults.length;
+  const crit = sev.Critical;
+  const score = Math.max(0, 100 - crit*8 - sev.High*4 - sev.Medium*2);
+  return {siteScans, allResults, sev, total, crit, score};
 }
 
-function buildPayload() {
-    const payload = {
-        url: document.getElementById("url").value.trim(),
-        vulns: getSelectedScanners()
-    };
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════════════════════
 
-    document.querySelectorAll("#dynamicInputs input").forEach(input => {
-        payload[input.name] = input.value;
-    });
-
-    return payload;
+function renderAll() {
+  renderSites();
+  renderHeader();
+  renderStats();
+  renderBarChart();
+  renderDonut();
+  renderScore();
+  renderFindings();
+  renderScanInfo();
+  renderNotifs();
+  renderDls();
 }
 
-async function startScan() {
-    const url = document.getElementById("url").value.trim();
-    const selected = getSelectedScanners();
-
-    if (!url) {
-        alert("Enter a target URL.");
-        return;
-    }
-
-    if (!selected.length) {
-        alert("Select at least one vulnerability.");
-        return;
-    }
-
-    const scanBtn = document.getElementById("scanBtn");
-    scanBtn.disabled = true;
-
-    resetUIForScan();
-    startProgressTicker();
-
-    const payload = buildPayload();
-
-    try {
-        const response = await fetch("/scan-live", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: authHeaders(true),
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            scanActive = false;
-            scanBtn.disabled = false;
-            setProgress(0, "Failed");
-            document.getElementById("scanStatusText").textContent = "Failed";
-            alert(data.error || "Scan request failed.");
-            return;
-        }
-
-        currentScanId = data.scan_id || null;
-        document.getElementById("scanIdLabel").textContent = currentScanId ? `#${currentScanId}` : "—";
-        document.getElementById("scanStatusText").textContent = "Running";
-
-        appendLog(`[SCAN ${currentScanId || "?"}] Scan queued...`);
-
-        if (socket && socket.connected && currentScanId) {
-            socket.emit("join_scan", { scan_id: currentScanId });
-        }
-
-    } catch (error) {
-        scanActive = false;
-        scanBtn.disabled = false;
-        setProgress(0, "Error");
-        document.getElementById("scanStatusText").textContent = "Error";
-        alert(error.message || "Unexpected error.");
-    }
+// --- Site Header ---
+function renderHeader() {
+  const el = document.getElementById('siteHeader');
+  if (activeSite === 'all') {
+    const targets = getUniqueTargets().length;
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:1.1rem;font-weight:700;color:#fff">All Tested Websites</div>
+      <span style="font-size:0.75rem;background:rgba(91,141,184,0.15);color:var(--accent);padding:2px 10px;border-radius:6px;font-weight:600">${targets} sites</span>
+    </div>`;
+  } else {
+    const scan = scans.find(s=>s.target===activeSite);
+    const st = scan?.status || 'unknown';
+    const stColor = st==='completed'?'var(--low)':st==='running'?'var(--accent)':'var(--crit)';
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="font-size:1.1rem;font-weight:700;color:#fff">${activeSite}</div>
+      <span style="font-size:0.72rem;background:${stColor}20;color:${stColor};padding:2px 10px;border-radius:6px;font-weight:600;border:1px solid ${stColor}40">${statusIcon[st]||''} ${st.toUpperCase()}</span>
+      <span style="font-size:0.72rem;color:var(--dim)">${scan?.created_at||''}</span>
+    </div>`;
+  }
 }
 
-function renderResults(results) {
-    const table = document.getElementById("results");
-    table.innerHTML = "";
-
-    if (!Array.isArray(results) || !results.length) {
-        table.innerHTML = `<tr><td colspan="3" class="subtle">No findings detected.</td></tr>`;
-        document.getElementById("findingsCount").textContent = "0";
-        return;
-    }
-
-    currentResults = results;
-    document.getElementById("findingsCount").textContent = String(results.length);
-
-    results.forEach(r => {
-        const severity = (r.severity || "Low").toString();
-        const sevClass = `sev-${severity.toLowerCase()}`;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${escapeHTML(r.name || "")}</td>
-            <td>${escapeHTML(r.result || "")}</td>
-            <td class="${sevClass}">${escapeHTML(severity)}</td>
-        `;
-        table.appendChild(tr);
-    });
+// --- Stats ---
+function renderStats() {
+  const d = getSiteData();
+  const pct = d.total > 0 ? Math.round(d.crit/d.total*100) : 0;
+  const el = document.getElementById('statsRow');
+  el.innerHTML = `
+    <div class="stat anim-up" style="animation-delay:0s">
+      <div class="stat-top"><div class="stat-label">Total Vulnerabilities</div><div class="stat-icon" style="background:rgba(91,141,184,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div></div>
+      <div class="stat-val" style="color:var(--accent)">${d.total}</div>
+      <div class="stat-sub">${d.siteScans.length} scan(s)</div>
+    </div>
+    <div class="stat anim-up" style="animation-delay:.05s">
+      <div class="stat-top"><div class="stat-label">Critical</div><div class="stat-icon" style="background:rgba(239,68,68,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--crit)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div></div>
+      <div class="stat-val" style="color:var(--crit)">${d.crit}</div>
+      <div class="stat-sub">${pct}% of total</div>
+    </div>
+    <div class="stat anim-up" style="animation-delay:.1s">
+      <div class="stat-top"><div class="stat-label">High</div><div class="stat-icon" style="background:rgba(249,115,22,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--high)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
+      <div class="stat-val" style="color:var(--high)">${d.sev.High}</div>
+    </div>
+    <div class="stat anim-up" style="animation-delay:.15s">
+      <div class="stat-top"><div class="stat-label">Medium</div><div class="stat-icon" style="background:rgba(234,179,8,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--med)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div></div>
+      <div class="stat-val" style="color:var(--med)">${d.sev.Medium}</div>
+    </div>
+    <div class="stat anim-up" style="animation-delay:.2s">
+      <div class="stat-top"><div class="stat-label">Low / Info</div><div class="stat-icon" style="background:rgba(34,197,94,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--low)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div>
+      <div class="stat-val" style="color:var(--low)">${d.sev.Low + d.sev.Info}</div>
+    </div>
+  `;
 }
 
-function drawChart(results) {
-    const counts = {
-        Critical: 0,
-        High: 0,
-        Medium: 0,
-        Low: 0
-    };
-
-    (results || []).forEach(r => {
-        const sev = (r.severity || "Low").toString();
-        if (sev in counts) counts[sev] += 1;
-        else counts.Low += 1;
-    });
-
-    const ctx = document.getElementById("severityChart").getContext("2d");
-    if (chartInstance) chartInstance.destroy();
-
-    chartInstance = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-            labels: ["Critical", "High", "Medium", "Low"],
-            datasets: [{
-                data: [counts.Critical, counts.High, counts.Medium, counts.Low],
-                backgroundColor: ["#ff4d6d", "#ff6b6b", "#ffcd4d", "#62ff8f"],
-                borderColor: "rgba(255,255,255,0.06)",
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: "#eef7ff"
-                    }
-                }
-            }
-        }
-    });
+// --- Bar Chart ---
+function renderBarChart() {
+  const d = getSiteData();
+  const max = Math.max(d.sev.Critical, d.sev.High, d.sev.Medium, d.sev.Low, d.sev.Info, 1);
+  const items = [
+    {label:'Critical',val:d.sev.Critical,color:'var(--crit)'},
+    {label:'High',val:d.sev.High,color:'var(--high)'},
+    {label:'Medium',val:d.sev.Medium,color:'var(--med)'},
+    {label:'Low',val:d.sev.Low,color:'var(--low)'},
+    {label:'Info',val:d.sev.Info,color:'var(--info)'}
+  ];
+  document.getElementById('barChart').innerHTML = items.map(i => `
+    <div class="bar-col">
+      <div class="bar-val" style="color:${i.color}">${i.val}</div>
+      <div class="bar-fill" style="height:${Math.max(i.val/max*120,4)}px;background:${i.color}"></div>
+      <div class="bar-lbl">${i.label}</div>
+    </div>
+  `).join('');
 }
 
-async function loadRecentScans() {
-    const table = document.getElementById("recentScans");
-
-    try {
-        const response = await fetch("/api/history", {
-            method: "GET",
-            credentials: "same-origin",
-            headers: authHeaders(false)
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            table.innerHTML = `<tr><td colspan="5" class="subtle">Could not load history.</td></tr>`;
-            return;
-        }
-
-        const scans = Array.isArray(data.scans) ? data.scans : [];
-        if (!scans.length) {
-            table.innerHTML = `<tr><td colspan="5" class="subtle">No scans found.</td></tr>`;
-            return;
-        }
-
-        table.innerHTML = "";
-        scans.slice(0, 5).forEach(scan => {
-            const findings = Array.isArray(scan.results) ? scan.results.length : 0;
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>#${escapeHTML(scan.id)}</td>
-                <td>${escapeHTML(scan.target || "")}</td>
-                <td>${escapeHTML(scan.status || "done")}</td>
-                <td>${escapeHTML(String(findings))}</td>
-                <td>${escapeHTML(scan.created_at || "")}</td>
-            `;
-            table.appendChild(tr);
-        });
-
-    } catch (e) {
-        table.innerHTML = `<tr><td colspan="5" class="subtle">History unavailable.</td></tr>`;
-    }
+// --- Donut ---
+function renderDonut() {
+  const d = getSiteData();
+  const total = d.total || 1;
+  const items = [
+    {label:'Critical',val:d.sev.Critical,color:'#EF4444'},
+    {label:'High',val:d.sev.High,color:'#F97316'},
+    {label:'Medium',val:d.sev.Medium,color:'#EAB308'},
+    {label:'Low',val:d.sev.Low,color:'#22C55E'},
+    {label:'Info',val:d.sev.Info,color:'#3B82F6'}
+  ];
+  const r = 60, cx = 70, cy = 70, sw = 18, circ = 2 * Math.PI * r;
+  let offset = 0;
+  let arcs = '';
+  items.forEach(i => {
+    const pct = i.val / total;
+    const dash = pct * circ;
+    arcs += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${i.color}" stroke-width="${sw}" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+  });
+  document.getElementById('donutChart').innerHTML = `
+    <div class="donut-wrap">
+      <div style="position:relative;width:140px;height:140px">
+        <svg width="140" height="140">${arcs}</svg>
+        <div class="donut-center"><div class="donut-total">${d.total}</div><div class="donut-lbl">Total</div></div>
+      </div>
+      <div class="legend">${items.map(i=>`<div class="leg-item"><div class="leg-dot" style="background:${i.color}"></div><div class="leg-name">${i.label}</div><div class="leg-val">${i.val} (${Math.round(i.val/total*100)}%)</div></div>`).join('')}</div>
+    </div>`;
 }
 
-function initSocket() {
-    socket = io({
-        transports: ["websocket", "polling"]
-    });
-
-    socket.on("connect", () => {
-        authHeaders(false);
-    });
-
-    socket.on("server_message", (payload) => {
-        if (!scanActive) return;
-        if (payload && payload.message) {
-            appendLog(`[SOCKET] ${payload.message}`);
-        }
-    });
-
-    socket.on("log", (msg) => {
-        if (!scanActive) return;
-        appendLog(msg);
-    });
-
-    socket.on("scan_complete", (payload) => {
-    if (payload.user_id && payload.user_id != "{{ session['user_id'] }}") {
-    return;
-}
-        if (!payload) return;
-
-        if (currentScanId && payload.scan_id && payload.scan_id !== currentScanId) {
-            return;
-        }
-
-        scanActive = false;
-        clearInterval(progressTimer);
-
-        const scanBtn = document.getElementById("scanBtn");
-        scanBtn.disabled = false;
-
-        const results = Array.isArray(payload.results) ? payload.results : [];
-        renderResults(results);
-        drawChart(results);
-
-        setProgress(100, "Complete");
-        document.getElementById("scanStatusText").textContent = payload.status || "done";
-        document.getElementById("findingsCount").textContent = String(results.length);
-
-        loadRecentScans();
-    });
+// --- Security Score ---
+function renderScore() {
+  const d = getSiteData();
+  const score = d.score;
+  const color = score >= 80 ? 'var(--low)' : score >= 50 ? 'var(--med)' : 'var(--crit)';
+  const r = 50, circ = 2*Math.PI*r, dash = (score/100)*circ;
+  document.getElementById('scoreRing').innerHTML = `
+    <div class="ring-wrap">
+      <svg width="120" height="120">
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="10" stroke-dasharray="${dash} ${circ-dash}" stroke-linecap="round" transform="rotate(-90 60 60)" style="transition:stroke-dasharray .6s ease-out"/>
+      </svg>
+      <div class="ring-text" style="color:${color}">${score}</div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:0.78rem;color:var(--dim);margin-bottom:8px">Risk Level</div>
+      <div style="font-size:0.9rem;font-weight:700;color:${color};margin-bottom:10px">${score>=80?'Low Risk':score>=50?'Medium Risk':'High Risk'}</div>
+      <div class="sev-bar-wrap">
+        ${d.sev.Critical?`<div class="sev-seg" style="width:${d.sev.Critical/d.total*100}%;background:var(--crit)"></div>`:''}
+        ${d.sev.High?`<div class="sev-seg" style="width:${d.sev.High/d.total*100}%;background:var(--high)"></div>`:''}
+        ${d.sev.Medium?`<div class="sev-seg" style="width:${d.sev.Medium/d.total*100}%;background:var(--med)"></div>`:''}
+        ${d.sev.Low?`<div class="sev-seg" style="width:${d.sev.Low/d.total*100}%;background:var(--low)"></div>`:''}
+        ${d.sev.Info?`<div class="sev-seg" style="width:${d.sev.Info/d.total*100}%;background:var(--info)"></div>`:''}
+      </div>
+      <div style="font-size:0.68rem;color:var(--dim);margin-top:8px">Score: ${score}/100</div>
+    </div>`;
 }
 
-async function loadScannerSpecs() {
-    try {
-        const response = await fetch("/api/scanners", {
-            method: "GET",
-            credentials: "same-origin",
-            headers: authHeaders(false)
-        });
-
-        const data = await response.json();
-
-        if (response.ok && Array.isArray(data.scanners) && data.scanners.length) {
-            scannerSpecs = data.scanners;
-        } else {
-            scannerSpecs = fallbackScanners;
-        }
-    } catch (e) {
-        scannerSpecs = fallbackScanners;
-    }
-
-    renderScannerOptions();
-    updateCounts();
+// --- Findings ---
+function renderFindings() {
+  const d = getSiteData();
+  let results = d.allResults;
+  if (findingsFilter !== 'all') results = results.filter(r => r.severity === findingsFilter);
+  document.getElementById('findingsCount').textContent = results.length + ' finding(s)';
+  const th = `<thead><tr><th>#</th><th>Vulnerability</th><th>CVSS</th><th>OWASP</th><th>Endpoint</th><th>Severity</th></tr></thead>`;
+  const rows = results.map((r,i) => `<tr style="cursor:pointer" onclick="showDetail(${i})">
+    <td style="color:var(--dim)">${i+1}</td>
+    <td><div style="color:#E2E8F0;font-weight:500">${r.name}</div><div style="font-size:0.65rem;color:var(--dim);margin-top:2px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.detail||''}</div></td>
+    <td><span style="font-weight:600;color:${(r.cvss||0)>=9?'var(--crit)':(r.cvss||0)>=7?'var(--high)':(r.cvss||0)>=4?'var(--med)':'var(--low)'}">${r.cvss||'-'}</span></td>
+    <td style="font-size:0.68rem;color:var(--accent)">${r.owasp||'-'}</td>
+    <td style="font-size:0.7rem;color:#94A3B8;font-family:monospace">${r.endpoint||'-'}</td>
+    <td><span class="badge ${sevB[r.severity]}">${r.severity}</span></td>
+  </tr>`).join('');
+  document.getElementById('findingsTbl').innerHTML = th + '<tbody>' + rows + '</tbody>';
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const token = getToken();
-    document.getElementById("tokenState").textContent = token ? "Yes" : "No";
-    document.getElementById("authMode").textContent = token ? "JWT Token" : "Session";
+function filterFindings(f) {
+  findingsFilter = f;
+  document.querySelectorAll('.card-btns .card-btn').forEach(b => {
+    b.className = 'card-btn ' + (b.textContent === (f==='all'?'All':f) ? 'card-btn-on' : 'card-btn-off');
+  });
+  renderFindings();
+}
 
-    await loadScannerSpecs();
-    initSocket();
-    loadRecentScans();
+// --- Finding Detail Popup ---
+function showDetail(idx) {
+  const d = getSiteData();
+  let results = d.allResults;
+  if (findingsFilter !== 'all') results = results.filter(r => r.severity === findingsFilter);
+  const r = results[idx];
+  if (!r) return;
+  const cvssColor = (r.cvss||0)>=9?'var(--crit)':(r.cvss||0)>=7?'var(--high)':(r.cvss||0)>=4?'var(--med)':'var(--low)';
+  const box = document.createElement('div');
+  box.className = 'modal-bg open';
+  box.onclick = e => { if (e.target === box) box.remove(); };
+  box.innerHTML = `<div class="modal" style="max-width:560px">
+    <div class="modal-title">${r.name} <button class="modal-close" onclick="this.closest('.modal-bg').remove()">&times;</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <span class="badge ${sevB[r.severity]}" style="font-size:0.75rem;padding:3px 12px">${r.severity}</span>
+      <span style="font-size:0.72rem;background:${cvssColor}20;color:${cvssColor};padding:3px 10px;border-radius:6px;font-weight:600;border:1px solid ${cvssColor}40">CVSS ${r.cvss||'N/A'}</span>
+      ${r.cve&&r.cve!=='N/A'?`<span style="font-size:0.72rem;background:rgba(91,141,184,0.15);color:var(--accent);padding:3px 10px;border-radius:6px;font-weight:500">${r.cve}</span>`:''}
+      <span style="font-size:0.72rem;background:rgba(255,255,255,0.05);color:#94A3B8;padding:3px 10px;border-radius:6px">${r.result}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="padding:10px;background:rgba(15,32,53,0.5);border-radius:7px;border:1px solid var(--border)">
+        <div style="font-size:0.68rem;color:var(--dim);margin-bottom:3px">OWASP Classification</div>
+        <div style="font-size:0.8rem;color:var(--accent);font-weight:600">${r.owasp||'N/A'}</div>
+      </div>
+      <div style="padding:10px;background:rgba(15,32,53,0.5);border-radius:7px;border:1px solid var(--border)">
+        <div style="font-size:0.68rem;color:var(--dim);margin-bottom:3px">Affected Endpoint</div>
+        <div style="font-size:0.8rem;color:#E2E8F0;font-family:monospace;word-break:break-all">${r.endpoint||'N/A'}</div>
+      </div>
+      <div style="padding:10px;background:rgba(15,32,53,0.5);border-radius:7px;border:1px solid var(--border)">
+        <div style="font-size:0.68rem;color:var(--dim);margin-bottom:3px">Parameter</div>
+        <div style="font-size:0.8rem;color:#E2E8F0;font-family:monospace">${r.param||'N/A'}</div>
+      </div>
+      <div style="padding:10px;background:rgba(15,32,53,0.5);border-radius:7px;border:1px solid var(--border)">
+        <div style="font-size:0.68rem;color:var(--dim);margin-bottom:3px">CVE Reference</div>
+        <div style="font-size:0.8rem;color:${r.cve&&r.cve!=='N/A'?'var(--accent)':'var(--dim)'};font-weight:${r.cve&&r.cve!=='N/A'?'600':'400'}">${r.cve||'N/A'}</div>
+      </div>
+    </div>
+    <div style="padding:12px;background:rgba(15,32,53,0.5);border-radius:7px;border:1px solid var(--border);margin-bottom:14px">
+      <div style="font-size:0.68rem;color:var(--dim);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em">Technical Details</div>
+      <div style="font-size:0.78rem;color:#CBD5E1;line-height:1.6">${r.detail||'No detailed description available.'}</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="tbtn tbtn-sec" style="flex:1;justify-content:center" onclick="this.closest('.modal-bg').remove()">Close</button>
+    </div>
+  </div>`;
+  document.body.appendChild(box);
+}
 
-    document.getElementById("results").innerHTML = `<tr><td colspan="3" class="subtle">No results yet.</td></tr>`;
-    document.getElementById("logs").textContent = "Waiting for scan...";
-    setProgress(0, "Idle");
+// --- Scan Info ---
+function renderScanInfo() {
+  const d = getSiteData();
+  const el = document.getElementById('scanInfo');
+  el.innerHTML = d.siteScans.map(s => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <div>
+        <div style="font-size:0.78rem;color:#E2E8F0;font-weight:500">${s.id}</div>
+        <div style="font-size:0.68rem;color:var(--dim)">${s.created_at}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:0.78rem;font-weight:600;color:${s.status==='completed'?'var(--low)':s.status==='running'?'var(--accent)':'var(--crit)'}">${s.status.toUpperCase()}</div>
+        <div style="font-size:0.68rem;color:var(--dim)">${s.results.length} finding(s)</div>
+      </div>
+    </div>
+  `).join('');
+}
 
-    document.getElementById("scannerList").addEventListener("change", () => {
-        renderDynamicInputs();
-    });
+// ══════════════════════════════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════════════════════
 
-    // subtle entrance animation
-    document.querySelectorAll(".fade-up").forEach((el, index) => {
-        setTimeout(() => el.classList.add("show"), index * 80);
-    });
-});
+function renderNotifs() {
+  const dot = document.getElementById('notifDot');
+  dot.style.display = notifs.length ? 'block' : 'none';
+  const el = document.getElementById('notifList');
+  if (!notifs.length) { el.innerHTML = '<div style="padding:14px;text-align:center;color:var(--dim);font-size:0.75rem">No notifications</div>'; return; }
+  const iconMap = {error:'🔴',success:'🟢',info:'🔵',warning:'🟡'};
+  el.innerHTML = notifs.map(n => `<div class="dd-item"><div style="font-size:1rem">${iconMap[n.type]||'🔵'}</div><div><div class="dd-item-title">${n.title}</div><div class="dd-item-desc">${n.desc}</div><div style="font-size:0.6rem;color:#475569;margin-top:2px">${n.time}</div></div></div>`).join('');
+}
+
+function clearNotifs() { notifs = []; renderNotifs(); }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DOWNLOADS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function renderDls() {
+  const dot = document.getElementById('dlDot');
+  dot.style.display = dls.length ? 'block' : 'none';
+  const el = document.getElementById('dlList');
+  if (!dls.length) { el.innerHTML = '<div style="padding:14px;text-align:center;color:var(--dim);font-size:0.75rem">No downloads yet</div>'; return; }
+  const iconMap = {pdf:'📄',json:'📋',csv:'📊'};
+  el.innerHTML = dls.map(f => `<div class="dd-item">
+    <div style="font-size:1.1rem">${iconMap[f.format]||'📄'}</div>
+    <div style="flex:1;min-width:0"><div class="dd-item-title">${f.status==='pending'?'⏳':'✅'} ${f.name}</div><div class="dd-item-desc">${f.size} · ${f.time}${f.status==='pending'?' · '+f.progress+'%':''}</div></div>
+    ${f.status==='ready'?`<button onclick="reDownload(${f.id})" style="background:linear-gradient(135deg,var(--accent),var(--cyan));border:none;border-radius:5px;padding:5px 12px;color:#fff;cursor:pointer;font-size:0.68rem;font-weight:600">⬇</button>`:''}
+  </div>`).join('');
+}
+
+function clearDls() { dls = []; renderDls(); toast('Downloads cleared','info'); }
+
+function reDownload(id) {
+  const f = dls.find(x=>x.id===id);
+  if (!f) return;
+  if (!f.content) { f.content = regenerateContent(f.format, f.target); f.mimeType = f.format==='pdf'?(f.content instanceof Blob?'application/pdf':'text/plain'):f.format==='json'?'application/json':'text/csv'; }
+  triggerDownload(f);
+  toast(f.name + ' downloaded!','success');
+}
+
+function triggerDownload(file) {
+  let blob;
+  if (file.content instanceof Blob) { blob = file.content; }
+  else if (file.content) { blob = new Blob([file.content], {type: file.mimeType || 'application/octet-stream'}); }
+  else { toast('File content not available','error'); return; }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=file.name; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url)},500);
+  } catch(e) { toast('Download failed: '+e.message,'error'); }
+}
+
+function regenerateContent(format, target) {
+  const d = getSiteDataFor(target);
+  if (format==='pdf') return generatePDF(target);
+  if (format==='json') return JSON.stringify(d.siteScans,null,2);
+  if (format==='csv') {
+    const rows = [['ID','Target','Status','Vulnerabilities','Highest','Date']];
+    d.siteScans.forEach(s=>rows.push([s.id,s.target,s.status,s.results.length,s.results[0]?.severity||'—',s.created_at]));
+    return rows.map(r=>r.join(',')).join('\n');
+  }
+  return '';
+}
+
+function getSiteDataFor(target) {
+  const siteScans = target && target !== 'all' ? scans.filter(s=>s.target===target) : scans;
+  const allResults = siteScans.flatMap(s=>s.results);
+  const sev = {Critical:0,High:0,Medium:0,Low:0,Info:0};
+  allResults.forEach(r=>sev[r.severity]++);
+  return {siteScans,allResults,sev,total:allResults.length,crit:sev.Critical,score:Math.max(0,100-sev.Critical*8-sev.High*4-sev.Medium*2)};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PDF GENERATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+function generatePDF(target) {
+  const d = getSiteDataFor(target);
+  const date = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  if (typeof window.jspdf === 'undefined') return generateFallback(d,date,target);
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pw = doc.internal.pageSize.getWidth();
+  const m = 18, cw = pw-m*2;
+  let y = 20;
+
+  // Cover
+  doc.setFillColor(12,25,41); doc.rect(0,0,pw,60,'F');
+  doc.setFillColor(91,141,184); doc.rect(m,12,4,32,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(20); doc.setFont('helvetica','bold');
+  doc.text('CYBERSCAN',m+10,26);
+  doc.setFontSize(12); doc.setFont('helvetica','normal'); doc.setTextColor(103,197,232);
+  doc.text('Vulnerability Assessment Report',m+10,36);
+  doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text(target&&target!=='all'?'Target: '+target:'All Scanned Targets',m+10,46);
+  doc.setFontSize(8); doc.setTextColor(180,190,200); doc.setFont('helvetica','normal');
+  doc.text('Generated: '+date+'  |  CyberScan v2.0',m+10,54);
+  y=68;
+
+  // Org
+  doc.setFontSize(8); doc.setTextColor(100,116,139);
+  doc.text('Beni Suef National University  |  Faculty of Computers and Information  |  Computer Science Dept.',pw/2,y,{align:'center'}); y+=10;
+
+  // Summary
+  doc.setDrawColor(91,141,184); doc.setLineWidth(0.4); doc.line(m,y,m+cw,y); y+=5;
+  doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30,51,82); doc.text('Executive Summary',m,y); y+=7;
+  [['Total Scans',String(d.siteScans.length)],['Total Vulnerabilities',String(d.total)],['Security Score',d.score+'/100']].forEach(([l,v])=>{
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139); doc.text(l+':',m+2,y);
+    doc.setFont('helvetica','bold'); doc.setTextColor(30,51,82); doc.text(v,m+52,y); y+=6;
+  }); y+=3;
+
+  // Severity
+  doc.setDrawColor(91,141,184); doc.line(m,y,m+cw,y); y+=5;
+  doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30,51,82); doc.text('Severity Breakdown',m,y); y+=7;
+  doc.setFillColor(24,40,64); doc.rect(m,y,cw,7,'F');
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text('Severity',m+3,y+5); doc.text('Count',m+cw-18,y+5); y+=7;
+  [['Critical',d.sev.Critical,[239,68,68]],['High',d.sev.High,[249,115,22]],['Medium',d.sev.Medium,[234,179,8]],['Low',d.sev.Low,[34,197,94]],['Info',d.sev.Info,[59,130,246]]].forEach(([s,c,rgb])=>{
+    doc.setFillColor(rgb[0],rgb[1],rgb[2]); doc.roundedRect(m+2,y+1,3,3,0.5,0.5,'F');
+    doc.setFont('helvetica','normal'); doc.setTextColor(60,70,85); doc.setFontSize(8); doc.text(s,m+9,y+4);
+    doc.setFont('helvetica','bold'); doc.text(String(c),m+cw-18,y+4); y+=6;
+  }); y+=5;
+
+  // Findings
+  doc.setDrawColor(91,141,184); doc.line(m,y,m+cw,y); y+=5;
+  doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30,51,82); doc.text('Detailed Findings',m,y); y+=7;
+  d.siteScans.forEach(scan=>{
+    if(y>255){doc.addPage();y=20;}
+    doc.setFillColor(24,40,64); doc.roundedRect(m,y-1,cw,6,1,1,'F');
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+    doc.text('Scan: '+scan.id+'  |  '+scan.target,m+3,y+3); y+=7;
+    doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139); doc.setFontSize(7);
+    doc.text('Status: '+scan.status.toUpperCase()+'    Date: '+scan.created_at+'    Findings: '+scan.results.length,m+3,y); y+=5;
+    const sevC2={Critical:[239,68,68],High:[249,115,22],Medium:[234,179,8],Low:[34,197,94],Info:[59,130,246]};
+    scan.results.forEach((r,i)=>{
+      if(y>255){doc.addPage();y=20;}
+      const c2=sevC2[r.severity]||[100,100,100];
+      doc.setFillColor(c2[0],c2[1],c2[2]); doc.roundedRect(m+3,y-1,2.5,2.5,0.4,0.4,'F');
+      doc.setTextColor(60,70,85); doc.setFontSize(7); doc.setFont('helvetica','bold');
+      doc.text((i+1)+'. ['+r.severity+'] '+r.name,m+8,y); y+=4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(100,116,139);
+      let meta = 'CVSS: '+(r.cvss||'N/A');
+      if(r.cve&&r.cve!=='N/A') meta +='  |  '+r.cve;
+      if(r.owasp) meta +='  |  '+r.owasp;
+      if(r.endpoint) meta +='  |  '+r.endpoint;
+      if(r.param&&r.param!=='N/A') meta +='  |  param: '+r.param;
+      doc.text(meta,m+8,y); y+=3.5;
+      if(r.detail){
+        doc.setTextColor(80,90,105); doc.setFontSize(6.5);
+        const lines = doc.splitTextToSize(r.detail, cw-12);
+        lines.slice(0,3).forEach(ln=>{doc.text(ln,m+8,y);y+=3;});
+      }
+      y+=2;
+    }); y+=3;
+  });
+
+  // Risk + Recommendations
+  if(y>225){doc.addPage();y=20;}
+  doc.setDrawColor(91,141,184); doc.line(m,y,m+cw,y); y+=5;
+  doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(30,51,82); doc.text('Risk Assessment & Recommendations',m,y); y+=7;
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  if(d.crit>0){doc.setTextColor(239,68,68);doc.text('CRITICAL: '+d.crit+' vulnerabilities need immediate action.',m+2,y);y+=5;}
+  if(d.sev.High>0){doc.setTextColor(249,115,22);doc.text('HIGH: '+d.sev.High+' issues should be prioritized.',m+2,y);y+=5;}
+  doc.setTextColor(60,70,85);
+  ['1. Patch Critical vulnerabilities within 24 hours','2. Address High severity issues within 72 hours','3. Implement input validation and parameterized queries','4. Deploy Content Security Policy headers','5. Enable HSTS on all web applications'].forEach(r=>{
+    if(y>275){doc.addPage();y=20;} doc.text(r,m+2,y); y+=5;
+  });
+
+  // Footer
+  y+=6; if(y>270){doc.addPage();y=20;}
+  doc.setDrawColor(200,200,200); doc.setLineWidth(0.2); doc.line(m,y,m+cw,y); y+=5;
+  doc.setFontSize(7); doc.setTextColor(150,150,150);
+  doc.text('Report generated by CyberScan v2.0  |  © 2026 Beni Suef National University',pw/2,y,{align:'center'});
+
+  return doc.output('blob');
+}
+
+function generateFallback(d,date,target) {
+  let lines = ['CYBERSCAN - VULNERABILITY REPORT'];
+  if(target&&target!=='all') lines.push('Target: '+target); else lines.push('Target: All Scanned Targets');
+  lines.push('Generated: '+date,'','Total: '+d.total,'Critical: '+d.crit,'High: '+d.sev.High,'Medium: '+d.sev.Medium,'Low: '+d.sev.Low,'Info: '+d.sev.Info,'Score: '+d.score+'/100','');
+  d.siteScans.forEach(s=>{lines.push(s.id+' | '+s.target+' | '+s.status);s.results.forEach((r,i)=>lines.push('  '+(i+1)+'. ['+r.severity+'] '+r.name+' - '+r.result));lines.push('');});
+  return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════════════════════════════
+
+function openExport() {
+  const sel = document.getElementById('exportTarget');
+  const targets = [...new Set(scans.map(s=>s.target))];
+  sel.innerHTML = '<option value="all">All Scanned Targets</option>';
+  targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); });
+  sel.value = activeSite === 'all' ? 'all' : activeSite;
+  exportTarget = sel.value;
+  document.getElementById('exportModal').classList.add('open');
+  closeDDs();
+}
+
+function exportTargetChanged(v) { exportTarget = v; }
+
+function doExport(format) {
+  closeM('exportModal');
+  const target = exportTarget || activeSite;
+  const d = getSiteDataFor(target);
+  let content, filename, type;
+  const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
+  const targetSlug = target && target !== 'all' ? target.replace(/[^a-zA-Z0-9]/g,'_') : 'all-targets';
+
+  if (format==='pdf') {
+    content = generatePDF(target);
+    filename = `report-${targetSlug}-${ts}.pdf`;
+    type = content instanceof Blob ? 'application/pdf' : 'text/plain';
+  } else if (format==='json') {
+    content = JSON.stringify(d.siteScans, null, 2);
+    filename = `report-${targetSlug}-${ts}.json`;
+    type = 'application/json';
+  } else {
+    const rows = [['ID','Target','Status','Vulnerabilities','Highest','Date']];
+    d.siteScans.forEach(s=>rows.push([s.id,s.target,s.status,s.results.length,s.results[0]?.severity||'—',s.created_at]));
+    content = rows.map(r=>r.join(',')).join('\n');
+    filename = `report-${targetSlug}-${ts}.csv`;
+    type = 'text/csv';
+  }
+  const size = ((content instanceof Blob ? content.size : new Blob([content]).size)/1024).toFixed(1)+' KB';
+  const id = ++dlIdCtr;
+  dls.unshift({id,name:filename,format,target,size,time:'Just now',content,mimeType:type,status:'ready'});
+  triggerDownload(dls[0]);
+  toast(`${format.toUpperCase()} report for ${target==='all'?'all sites':target} downloaded!`,'success');
+  renderDls();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  NEW SCAN
+// ══════════════════════════════════════════════════════════════════════════════
+
+function openNewScan(prefill) {
+  document.getElementById('newScanModal').classList.add('open');
+  document.getElementById('scanUrl').value = prefill || '';
+  renderCbs();
+  closeDDs();
+}
+
+function renderCbs() {
+  document.getElementById('scanCbGroup').innerHTML = modules.map(m=>`<div class="cb-item checked" onclick="this.classList.toggle('checked')">${m}</div>`).join('');
+}
+
+function resetScanForm() {
+  document.getElementById('scanUrl').value = '';
+  renderCbs();
+}
+
+function startScan() {
+  const url = document.getElementById('scanUrl').value.trim();
+  if (!url) { toast('Please enter a target URL','error'); return; }
+  const sel = [...document.querySelectorAll('#scanCbGroup .cb-item.checked')].map(e=>e.textContent);
+  if (!sel.length) { toast('Select at least one scanner','error'); return; }
+  closeM('newScanModal');
+  const newId = 'CYBERSCAN-'+String(scans.length+1).padStart(3,'0');
+  const ns = {id:newId,target:url,results:[],status:'running',created_at:new Date().toISOString().slice(0,16).replace('T',' ')};
+  scans.unshift(ns);
+  scanInProgress = true;
+  activeSite = url;
+  toast('Scan started: '+url,'info');
+  renderAll();
+
+  const vulnT = [
+    {name:'SQL Injection — Authentication Bypass',result:'Vulnerable',severity:'Critical',cve:'CVE-2020-17526',owasp:'A03:2021-Injection',cvss:9.8,endpoint:'/login',param:'username',detail:'User input in login form is concatenated into SQL query. Payload: admin\'-- bypasses authentication'},
+    {name:'Blind XSS — Stored Payload',result:'Vulnerable',severity:'High',cve:'CVE-2022-31629',owasp:'A03:2021-Injection',cvss:7.4,endpoint:'/feedback',param:'message',detail:'Blind XSS payload stored and executed in admin panel. Out-of-band callback received'},
+    {name:'Clickjacking — Missing X-Frame-Options',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:4.3,endpoint:'HTTP Headers',param:'N/A',detail:'X-Frame-Options and CSP frame-ancestors headers are missing. Page can be embedded in an iframe'},
+    {name:'CORS Misconfiguration — Wildcard Origin',result:'Vulnerable',severity:'High',cve:'CVE-2021-21234',owasp:'A05:2021-Security Misconfiguration',cvss:7.5,endpoint:'/api/data',param:'Origin',detail:'Access-Control-Allow-Origin: * with credentials enabled. Allows cross-origin data theft'},
+    {name:'CSRF — State-Changing Action',result:'Vulnerable',severity:'Medium',cve:'CVE-2021-24239',owasp:'A01:2021-Broken Access Control',cvss:5.4,endpoint:'/update-profile',param:'N/A',detail:'No anti-CSRF token found on profile update. Attacker can submit forged requests on behalf of authenticated users'},
+    {name:'Directory Scan — Exposed Paths',result:'Found',severity:'Medium',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:5.3,endpoint:'/admin, /backup, /.git',param:'N/A',detail:'Sensitive directories discovered: /admin (200), /backup (200), /.git (403). May expose source code or admin interface'},
+    {name:'File Upload — Unrestricted Upload',result:'Vulnerable',severity:'Critical',cve:'CVE-2021-44228',owasp:'A03:2021-Injection',cvss:9.8,endpoint:'/upload',param:'file',detail:'Server accepts PHP/executable files without validation. Remote code execution via uploaded shell confirmed'},
+    {name:'GraphQL — Introspection Enabled',result:'Exposed',severity:'Low',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:3.1,endpoint:'/graphql',param:'query',detail:'GraphQL introspection is enabled in production. Full schema exposed allowing enumeration of all types and fields'},
+    {name:'Host Header Injection',result:'Vulnerable',severity:'High',cve:'CVE-2022-28525',owasp:'A05:2021-Security Misconfiguration',cvss:7.2,endpoint:'/reset-password',param:'Host',detail:'Host header reflected in password reset email link without validation. Can redirect victim to attacker-controlled domain'},
+    {name:'HTML Injection — Reflected Input',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A03:2021-Injection',cvss:5.4,endpoint:'/profile',param:'bio',detail:'HTML tags injected via bio field are rendered in page. Allows UI redressing and phishing within the site'},
+    {name:'IDOR — Insecure Direct Object Reference',result:'Vulnerable',severity:'High',cve:'N/A',owasp:'A01:2021-Broken Access Control',cvss:8.1,endpoint:'/api/users/{id}',param:'id',detail:'Changing user ID parameter exposes other users\' data. No authorization check on resource ownership'},
+    {name:'Info Scan — Server Disclosure',result:'Exposed',severity:'Info',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:0.0,endpoint:'HTTP Headers',param:'N/A',detail:'Server header reveals: Apache/2.4.51 (Ubuntu). Version disclosure aids targeted exploitation'},
+    {name:'Open Redirect — Unvalidated Redirect',result:'Vulnerable',severity:'Medium',cve:'CVE-2022-28525',owasp:'A01:2021-Broken Access Control',cvss:4.3,endpoint:'/logout',param:'next',detail:'Redirect URL not validated. Can be used for phishing: /logout?next=https://evil.com'},
+    {name:'Path Traversal — File Read',result:'Vulnerable',severity:'High',cve:'CVE-2021-42013',owasp:'A01:2021-Broken Access Control',cvss:7.5,endpoint:'/download',param:'file',detail:'Directory traversal confirmed. Payload: ../../etc/passwd returns system files'},
+    {name:'Rate Limit — Brute Force Possible',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A07:2021-Identification Failures',cvss:5.3,endpoint:'/login',param:'N/A',detail:'No rate limiting on login endpoint. 1000 requests/minute accepted without lockout. Brute force attack feasible'},
+    {name:'SSRF — Internal Network Access',result:'Vulnerable',severity:'Critical',cve:'CVE-2021-26085',owasp:'A10:2021-SSRF',cvss:9.1,endpoint:'/fetch',param:'url',detail:'Server-Side Request Forgery confirmed. Internal metadata endpoint accessible: http://169.254.169.254/latest/meta-data/'},
+    {name:'Stored XSS — Persistent Payload',result:'Vulnerable',severity:'High',cve:'CVE-2019-12345',owasp:'A03:2021-Injection',cvss:7.5,endpoint:'/comments',param:'body',detail:'XSS payload stored in comment body and executed for all users viewing the page. Session hijacking possible'},
+    {name:'Weak Password Scanner — Default Credentials',result:'Vulnerable',severity:'Critical',cve:'N/A',owasp:'A07:2021-Identification Failures',cvss:9.8,endpoint:'/admin',param:'credentials',detail:'Admin panel accessible with default credentials admin:admin123. Immediate account takeover possible'},
+    {name:'XSS — Reflected Cross-Site Scripting',result:'Vulnerable',severity:'High',cve:'CVE-2019-12345',owasp:'A03:2021-Injection',cvss:7.5,endpoint:'/search',param:'q',detail:'Search parameter reflects user input without encoding. Script injection confirmed via alert(1) payload'},
+    {name:'Auth Scanner — Broken Authentication',result:'Vulnerable',severity:'Critical',cve:'CVE-2020-17530',owasp:'A07:2021-Identification Failures',cvss:9.8,endpoint:'/api/auth',param:'token',detail:'JWT token accepted without signature verification. Forged tokens grant admin access'},
+    {name:'SSRF Scanner — Cloud Metadata',result:'Vulnerable',severity:'High',cve:'CVE-2022-22963',owasp:'A10:2021-SSRF',cvss:8.5,endpoint:'/proxy',param:'target',detail:'Cloud metadata service reachable via SSRF. AWS credentials exposed at 169.254.169.254/latest/meta-data/iam/'}
+  ];
+  let vi = 0; const mx = 3+Math.floor(Math.random()*5);
+  scanTimer = setInterval(()=>{
+    if(vi<mx&&Math.random()>0.5){const t=vulnT[vi%vulnT.length];ns.results.push({...t});vi++;renderAll();}
+    if(vi>=mx){clearInterval(scanTimer);ns.status='completed';scanInProgress=false;toast('Scan completed: '+url+' — '+ns.results.length+' vulnerabilities found','success');notifs.unshift({title:'Scan completed: '+url,desc:ns.results.length+' vulnerabilities found',time:'Just now',type:'success'});if(ns.results.some(r=>r.severity==='Critical')){notifs.unshift({title:'Critical vulnerability detected!',desc:url+' — '+ns.results.filter(r=>r.severity==='Critical').length+' Critical finding(s)',time:'Just now',type:'error'});}renderAll();}
+  },800);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  UTILITY
+// ══════════════════════════════════════════════════════════════════════════════
+
+function closeM(id) { document.getElementById(id).classList.remove('open'); }
+
+function toggleDD(e,id) {
+  e.stopPropagation();
+  const p = document.getElementById(id);
+  const was = p.classList.contains('open');
+  closeDDs();
+  if (!was) p.classList.add('open');
+}
+
+function closeDDs() { document.querySelectorAll('.dd-panel').forEach(p=>p.classList.remove('open')); }
+
+document.addEventListener('click', closeDDs);
+
+function toast(msg,type='info') {
+  const el = document.getElementById('toastBox');
+  const icons = {success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+  el.appendChild(t);
+  setTimeout(()=>t.remove(),3500);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════════════════
+
+loadDashboardData();
 </script>
 </body>
 </html>
