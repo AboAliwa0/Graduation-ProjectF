@@ -159,6 +159,7 @@
     @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}.topbar{padding:0 12px}.main{padding:12px}.sites-list{gap:6px}.site-chip{padding:6px 12px;font-size:0.75rem}}
   </style>
 </head>
+
 <body class="grid-bg">
 
 <div class="toast-box" id="toastBox"></div>
@@ -227,6 +228,15 @@
       <!-- Findings List -->
       <div class="card anim-up" style="animation-delay:.2s">
         <div class="card-h"><div><div class="card-title">Detailed Findings</div><div class="card-sub" id="findingsCount"></div></div>
+        <button
+          class="tbtn tbtn-pri"
+          style="margin-bottom:14px"
+          onclick="generateAIAnalysis(getSiteData().allResults)"
+        >
+          AI Analysis
+        </button>
+
+          <div id="aiAnalysisContainer"></div>
           <div class="card-btns">
             <button class="card-btn card-btn-on" onclick="filterFindings('all')">All</button>
             <button class="card-btn card-btn-off" onclick="filterFindings('Critical')">Critical</button>
@@ -1153,6 +1163,95 @@ function toast(msg,type='info') {
 // ══════════════════════════════════════════════════════════════════════════════
 
 loadDashboardData();
+async function generateAIAnalysis(scanResults) {
+
+  try {
+
+    const response = await fetch("/ai-analysis", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        scan_results: scanResults
+      })
+
+    });
+
+    const data = await response.json();
+
+    showAIAnalysis(data);
+
+  } catch (err) {
+
+    console.error("AI Error:", err);
+
+    toast("AI Analysis Failed", "error");
+
+  }
+}
+
+function showAIAnalysis(data) {
+
+  let html = `
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">AI Security Analysis</div>
+
+      <p style="margin-top:10px;color:#CBD5E1">
+        ${data.summary}
+      </p>
+  `;
+
+  data.vulnerabilities.forEach(v => {
+
+    html += `
+      <div style="
+        margin-top:12px;
+        padding:12px;
+        border:1px solid rgba(255,255,255,0.08);
+        border-radius:8px;
+      ">
+
+        <h4 style="color:white">
+          ${v.name}
+        </h4>
+
+        <p>
+          <strong>Severity:</strong>
+          ${v.severity}
+        </p>
+
+        <p>
+          <strong>Description:</strong>
+          ${v.description}
+        </p>
+
+        <p>
+          <strong>Fix:</strong>
+          ${v.fix}
+        </p>
+
+        <p>
+          <strong>Confidence:</strong>
+          ${v.confidence}
+        </p>
+
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  document.getElementById("aiAnalysisContainer").innerHTML = html;
+}
 </script>
+<button onclick="startAIAnalysis()">
+    AI Analysis
+</button>
+
+<div id="ai-results"></div>
 </body>
 </html>

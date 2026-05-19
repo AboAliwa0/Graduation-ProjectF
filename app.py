@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, session
 from flask_bcrypt import Bcrypt
+from routes_ai import ai_bp
 from database import init_db, connect
 from main import load_scanners
 from flask_jwt_extended import (
@@ -20,6 +21,7 @@ from urllib.parse import urlparse
 # -----------------------
 
 app = Flask(__name__)
+
 app.config["JWT_SECRET_KEY"] = "super-secret-key"
 app.secret_key = "secret123"
 
@@ -28,6 +30,7 @@ jwt = JWTManager(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 init_db()
+app.register_blueprint(ai_bp)
 
 # -----------------------
 # 🛡️ Helpers
