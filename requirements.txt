@@ -10,3 +10,5 @@ eventlet
 python-dotenv
 openai
 reportlab
+requests>=2.32.0
+urllib3>=2.2.0

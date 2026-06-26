@@ -1301,13 +1301,21 @@ function openNewScan(prefill) {
   document.getElementById('newScanModal').classList.add('open');
   document.getElementById('scanUrl').value = prefill || '';
   document.getElementById('scanMode').value = 'standard';
-  renderCbs();
+  renderCbs([]);
   closeDDs();
 }
 
-function renderCbs(selectedModules = modules) {
-  const selected = new Set(selectedModules);
-  document.getElementById('scanCbGroup').innerHTML = modules.map(m=>`<div class="cb-item ${selected.has(m) ? 'checked' : ''}" onclick="this.classList.toggle('checked')">${m}</div>`).join('');
+function renderCbs(selectedModules = []) {
+
+    const selected = new Set(selectedModules);
+
+    document.getElementById("scanCbGroup").innerHTML =
+        modules.map(m => `
+            <div class="cb-item ${selected.has(m) ? "checked" : ""}"
+                 onclick="this.classList.toggle('checked')">
+                ${m}
+            </div>
+        `).join("");
 }
 
 function applyScanMode(mode) {
@@ -1323,7 +1331,7 @@ function applyScanMode(mode) {
 function resetScanForm() {
   document.getElementById('scanUrl').value = '';
   document.getElementById('scanMode').value = 'standard';
-  renderCbs();
+  renderCbs([]);
 }
 
 async function startScan() {

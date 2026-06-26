@@ -24,7 +24,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-
+from backend.core.plugin import Plugin
 # -----------------------
 # 🚀 App Setup
 # -----------------------
@@ -646,24 +646,72 @@ def get_current_user_id():
 
 
 def load_scanner_specs():
-    """
-    Used by /api/scanners to expose scanner names and required inputs.
-    """
+
     specs = []
+
     scanners = load_scanners()
 
     for scanner in scanners:
-        name = scanner.__name__.split(".")[-1]
-        specs.append(
-            {
-                "name": name,
+
+        # ===================================
+        # New Plugin
+        # ===================================
+
+        if hasattr(scanner, "id"):
+
+            specs.append({
+
+                "id": scanner.id,
+
+                "name": scanner.name,
+
+                "version": scanner.version,
+
+                "author": scanner.author,
+
+                "category": scanner.category,
+
                 "inputs": getattr(scanner, "inputs", []),
-                "meta": getattr(scanner, "meta", {}),
-            }
-        )
+
+                "meta": {
+
+                    "description":
+                        scanner.info.description,
+
+                    "severity":
+                        scanner.info.severity,
+
+                }
+
+            })
+
+        # ===================================
+        # Legacy Scanner
+        # ===================================
+
+        else:
+
+            name = scanner.__name__.split(".")[-1]
+
+            specs.append({
+
+                "id": name,
+
+                "name": name,
+
+                "version": "Legacy",
+
+                "author": "Legacy",
+
+                "category": "Legacy",
+
+                "inputs": getattr(scanner, "inputs", []),
+
+                "meta": getattr(scanner, "meta", {})
+
+            })
 
     return specs
-
 
 def build_scanner_args(scanner, scanner_name, url, payload_data):
     """
@@ -1163,51 +1211,132 @@ def handle_join_scan(data):
     except Exception:
         pass
 
-
-# -----------------------
-# ⚡ Async Scan Engine
-# -----------------------
-
 def run_scan(scan_id, user_id, url, selected, payload_data):
     scanners = load_scanners()
     selected = set(normalize_selected_scanners(selected))
     results = []
     status = "done"
+    # ==========================
+    # DEBUG
+    # ==========================
+    print("\n" + "=" * 60)
+    print("SELECTED FROM FRONTEND:")
+    print(selected)
+    print("=" * 60 + "\n")
 
     try:
         emit_log(f"[SCAN {scan_id}] [+] Starting scan...")
 
         for scanner in scanners:
-            name = scanner.__name__.split(".")[-1]
 
-            if selected and name not in selected:
-                continue
+            # ==========================================
+            # New Plugin Framework
+            # ==========================================
+            if isinstance(scanner, Plugin):
 
-            try:
-                emit_log(f"[SCAN {scan_id}] [+] Testing {name}...")
+                name = scanner.id
+                print("TYPE =", type(scanner))
+                print("IS PLUGIN =", isinstance(scanner, Plugin))
+                print(f"[PLUGIN] Checking: {name}")
 
-                args = build_scanner_args(scanner, name, url, payload_data)
-                raw_result = scanner.scan(*args)
+                if selected and name not in selected:
+                    print(f"[PLUGIN] Skipped: {name}")
+                    continue
 
-                normalized = normalize_scanner_result(name, raw_result)
-                results.append(normalized)
+                try:
 
-                emit_log(f"[SCAN {scan_id}] [RESULT] {name}: {normalized['result']}")
+                    emit_log(
+                        f"[SCAN {scan_id}] [+] Running {scanner.name}..."
+                    )
+                    print("========== BEFORE EXECUTE ==========")
+                    result = scanner.execute(url)
+                    print("========== AFTER EXECUTE ==========")
+                    results.append({
+                        "name": scanner.name,
+                        "title": result.title,
+                        "result": result.description,
+                        "severity": result.severity,
+                        "confidence": result.confidence,
+                        "recommendation": result.recommendation,
+                        "evidence": result.evidence,
+                        "status_code": result.status_code,
+                        "execution_time": result.execution_time,
+                        "vulnerable": result.vulnerable,
+                    })
 
-            except Exception as e:
-                friendly_error = (
-                    f"{display_scanner_name(name)} could not complete. "
-                    f"Reason: {str(e)}"
-                )
-                emit_log(f"[SCAN {scan_id}] [ERROR] {friendly_error}")
-                results.append(
-                    {
-                        "name": name,
-                        "result": friendly_error,
+                    emit_log(
+                        f"[SCAN {scan_id}] "
+                        f"[RESULT] {scanner.name}: {result.severity}"
+                    )
+
+                except Exception as ex:
+
+                    emit_log(
+                        f"[SCAN {scan_id}] "
+                        f"[PLUGIN ERROR] {scanner.name}: {ex}"
+                    )
+
+                    results.append({
+                        "name": scanner.name,
+                        "result": str(ex),
                         "severity": "Info",
                         "confidence": "Low",
-                    }
-                )
+                    })
+
+            # ==========================================
+            # Legacy Scanner Framework
+            # ==========================================
+            else:
+
+                name = scanner.__name__.split(".")[-1]
+
+                print(f"[LEGACY] Checking: {name}")
+
+                if selected and name not in selected:
+                    print(f"[LEGACY] Skipped: {name}")
+                    continue
+
+                try:
+
+                    emit_log(
+                        f"[SCAN {scan_id}] [+] Running {name}..."
+                    )
+
+                    args = build_scanner_args(
+                        scanner,
+                        name,
+                        url,
+                        payload_data,
+                    )
+
+                    raw_result = scanner.scan(*args)
+
+                    normalized = normalize_scanner_result(
+                        name,
+                        raw_result,
+                    )
+
+                    results.append(normalized)
+
+                    emit_log(
+                        f"[SCAN {scan_id}] "
+                        f"[RESULT] {name}: "
+                        f"{normalized.get('result', 'Completed')}"
+                    )
+
+                except Exception as ex:
+
+                    emit_log(
+                        f"[SCAN {scan_id}] "
+                        f"[LEGACY ERROR] {name}: {ex}"
+                    )
+
+                    results.append({
+                        "name": name,
+                        "result": str(ex),
+                        "severity": "Info",
+                        "confidence": "Low",
+                    })
 
         emit_log(f"[SCAN {scan_id}] [✔] Scan Finished")
 
@@ -1217,7 +1346,11 @@ def run_scan(scan_id, user_id, url, selected, payload_data):
 
     finally:
         try:
-            update_scan_record(scan_id, results, status=status)
+            update_scan_record(
+                scan_id,
+                results,
+                status=status,
+            )
         except Exception as e:
             emit_log(f"[SCAN {scan_id}] [DB ERROR] {str(e)}")
 
