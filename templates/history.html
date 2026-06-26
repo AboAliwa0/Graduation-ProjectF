@@ -276,6 +276,7 @@
         .sev-high { color: var(--red); font-weight: 800; }
         .sev-medium { color: var(--yellow); font-weight: 800; }
         .sev-low { color: var(--green); font-weight: 800; }
+        .sev-info { color: var(--blue); font-weight: 800; }
 
         .empty-state {
             padding: 30px 20px;
@@ -435,7 +436,10 @@
                             <span class="status-badge status-{{ scan.status|lower if scan.status else 'done' }}">
                                 {{ scan.status|upper if scan.status else 'DONE' }}
                             </span>
+                            <span><strong>Findings:</strong> {{ scan.findings_count }}</span>
+                            <span><strong>Highest:</strong> <span class="sev-{{ scan.highest_severity|lower }}">{{ scan.highest_severity }}</span></span>
                         </div>
+                        <a href="/scan/{{ scan.id }}" class="btn btn-primary">View Details</a>
                     </div>
 
                     {% if scan.results and scan.results|length > 0 %}
@@ -450,8 +454,8 @@
                             <tbody>
                                 {% for r in scan.results %}
                                 <tr>
-                                    <td>{{ r.name }}</td>
-                                    <td>{{ r.result }}</td>
+                                    <td>{{ r.scanner }}</td>
+                                    <td>{{ r.description }}</td>
                                     <td class="sev-{{ r.severity|lower }}">{{ r.severity }}</td>
                                 </tr>
                                 {% endfor %}

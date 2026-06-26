@@ -277,7 +277,7 @@
     <div class="modal-title">New Vulnerability Scan <button class="modal-close" onclick="closeM('newScanModal')">&times;</button></div>
     <div class="form-row"><label class="form-label">Target URL</label><input type="text" class="input-field" id="scanUrl" placeholder="https://example.com" /></div>
     <div class="form-row"><label class="form-label">Vulnerability Scanners</label><div class="cb-group" id="scanCbGroup"></div></div>
-    <div class="form-row"><label class="form-label">Scan Mode</label><select class="select-field" id="scanMode"><option value="quick">Quick Scan</option><option value="standard" selected>Standard Scan</option><option value="deep">Deep Scan</option></select></div>
+    <div class="form-row"><label class="form-label">Scan Mode</label><select class="select-field" id="scanMode" onchange="applyScanMode(this.value)"><option value="quick">Quick Scan</option><option value="standard" selected>Standard Scan</option><option value="deep">Deep Scan</option></select></div>
     <div style="display:flex;gap:8px"><button class="tbtn tbtn-pri" onclick="startScan()" style="flex:1;justify-content:center">Start Scan</button><button class="tbtn tbtn-sec" onclick="resetScanForm()">Reset</button></div>
   </div>
 </div>
@@ -307,6 +307,7 @@
   </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════════════════════
 // REAL PROJECT DATA
@@ -336,6 +337,38 @@ const modules = [
   'Stored XSS Scanner',
   'Weak Password Scanner',
   'XSS'
+];
+
+const moduleValues = {
+  'Auth Scanner': 'auth_scanner',
+  'Blind XSS': 'blind_xss',
+  'Clickjacking Scanner': 'clickjacking_scanner',
+  'CORS Scanner': 'cors_scanner',
+  'CSRF Scan': 'csrf_scan',
+  'Dir Scan': 'dir_scan',
+  'File Upload': 'file_upload',
+  'GraphQL Scanner': 'graphql_scanner',
+  'Host Header Scanner': 'host_header_scanner',
+  'HTML Injection': 'html_injection',
+  'IDOR': 'idor',
+  'Info Scan': 'info_scan',
+  'Open Redirect Scanner': 'open_redirect_scanner',
+  'Path Traversal': 'path_traversal',
+  'Rate Limit': 'rate_limit',
+  'SQL Injection': 'sql_injection',
+  'SSRF': 'ssrf',
+  'SSRF Scanner': 'ssrf_scanner',
+  'Stored XSS Scanner': 'stored_xss_scanner',
+  'Weak Password Scanner': 'weak_password_scanner',
+  'XSS': 'xss'
+};
+
+const quickScanModules = [
+  'Info Scan',
+  'Clickjacking Scanner',
+  'CORS Scanner',
+  'CSRF Scan',
+  'Dir Scan'
 ];
 
 const sevC = {
@@ -368,6 +401,7 @@ let notifs = [];
 let dls = [];
 let dlIdCtr = 0;
 let exportTarget = 'all';
+let dashboardStats = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOAD REAL DATA FROM FLASK BACKEND
@@ -376,7 +410,10 @@ let exportTarget = 'all';
 async function loadDashboardData() {
   try {
 
-    const response = await fetch('/api/history');
+    const [response] = await Promise.all([
+      fetch('/api/history'),
+      loadDashboardStats()
+    ]);
 
     const data = await response.json();
 
@@ -385,19 +422,7 @@ async function loadDashboardData() {
       return;
     }
 
-    scans = data.scans.map(scan => ({
-
-      id: `CYBERSCAN-${scan.id}`,
-
-      target: scan.target || 'Unknown Target',
-
-      status: scan.status || 'completed',
-
-      created_at: scan.created_at || 'Unknown',
-
-      results: parseResults(scan.results)
-
-    }));
+    scans = data.scans.map(scan => normalizeScanPayload(scan));
 
     renderAll();
 
@@ -406,6 +431,24 @@ async function loadDashboardData() {
     console.error('Dashboard loading error:', err);
 
     toast('Failed to load dashboard data', 'error');
+  }
+}
+
+async function loadDashboardStats() {
+  try {
+    const response = await fetch('/api/dashboard-stats');
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load dashboard statistics');
+    }
+
+    dashboardStats = data.stats || null;
+    return dashboardStats;
+  } catch (err) {
+    console.error('Dashboard stats loading error:', err);
+    dashboardStats = null;
+    return null;
   }
 }
 
@@ -425,7 +468,7 @@ function parseResults(results) {
       return [];
     }
 
-    return results.map(result => ({
+    return results.filter(result => !isNonFindingResult(result)).map(result => ({
 
       name: formatScannerName(result.name || 'Unknown Scanner'),
 
@@ -458,6 +501,68 @@ function parseResults(results) {
 // ══════════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════════════════════
+
+function isNonFindingResult(result) {
+  if (!result || typeof result !== 'object') return false;
+
+  const text = String(
+    result.result ||
+    result.message ||
+    result.status ||
+    result.description ||
+    result.details ||
+    ''
+  ).toLowerCase();
+
+  if (text.includes('error:') || text.includes('could not complete')) {
+    return false;
+  }
+
+  if (result.vulnerable === false) {
+    return true;
+  }
+
+  return [
+    'no vulnerabilities found',
+    'no information disclosure detected',
+    'clickjacking protection detected',
+    'cors configuration appears secure',
+    'csrf protection header detected',
+    'csrf token found in form',
+    'no forms detected',
+    'no directory listing detected',
+    'rate limiting detected',
+    'server delay detected'
+  ].some(phrase => text.includes(phrase));
+}
+
+function normalizeScanStatus(status) {
+  if (!status) return 'completed';
+  const value = String(status).toLowerCase();
+  if (value === 'done' || value === 'complete') return 'completed';
+  return value;
+}
+
+function normalizeScanPayload(scan) {
+  return {
+    id: `CYBERSCAN-${scan.id}`,
+    backend_id: scan.id,
+    target: scan.target || 'Unknown Target',
+    status: normalizeScanStatus(scan.status),
+    created_at: scan.created_at || 'Unknown',
+    results: parseResults(scan.results)
+  };
+}
+
+function upsertScan(scanData) {
+  const normalized = normalizeScanPayload(scanData);
+  const idx = scans.findIndex(s => s.backend_id === normalized.backend_id || s.id === normalized.id);
+  if (idx >= 0) scans[idx] = normalized;
+  else scans.unshift(normalized);
+  activeSite = normalized.target;
+  renderAll();
+  return normalized;
+}
 
 function normalizeSeverity(sev) {
 
@@ -583,6 +688,18 @@ function switchSite(target) {
 function getSiteData() {
   const siteScans = activeSite === 'all' ? scans : scans.filter(s => s.target === activeSite);
   const allResults = siteScans.flatMap(s => s.results);
+
+  if (activeSite === 'all' && dashboardStats) {
+    const sev = Object.assign(
+      {Critical:0,High:0,Medium:0,Low:0,Info:0},
+      dashboardStats.severity_distribution || {}
+    );
+    const total = dashboardStats.total_findings || 0;
+    const crit = sev.Critical || 0;
+    const score = Math.max(0, 100 - crit*8 - (sev.High||0)*4 - (sev.Medium||0)*2);
+    return {siteScans, allResults, sev, total, crit, score};
+  }
+
   const sev = {Critical:0,High:0,Medium:0,Low:0,Info:0};
   allResults.forEach(r => sev[r.severity]++);
   const total = allResults.length;
@@ -634,6 +751,38 @@ function renderStats() {
   const d = getSiteData();
   const pct = d.total > 0 ? Math.round(d.crit/d.total*100) : 0;
   const el = document.getElementById('statsRow');
+
+  if (activeSite === 'all' && dashboardStats) {
+    el.innerHTML = `
+      <div class="stat anim-up" style="animation-delay:0s">
+        <div class="stat-top"><div class="stat-label">Total Scans</div><div class="stat-icon" style="background:rgba(91,141,184,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div></div>
+        <div class="stat-val" style="color:var(--accent)">${dashboardStats.total_scans || 0}</div>
+        <div class="stat-sub">Saved scans</div>
+      </div>
+      <div class="stat anim-up" style="animation-delay:.05s">
+        <div class="stat-top"><div class="stat-label">Completed</div><div class="stat-icon" style="background:rgba(34,197,94,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--low)" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+        <div class="stat-val" style="color:var(--low)">${dashboardStats.completed_scans || 0}</div>
+        <div class="stat-sub">Finished scans</div>
+      </div>
+      <div class="stat anim-up" style="animation-delay:.1s">
+        <div class="stat-top"><div class="stat-label">Running</div><div class="stat-icon" style="background:rgba(91,141,184,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></div></div>
+        <div class="stat-val" style="color:var(--accent)">${dashboardStats.running_scans || 0}</div>
+        <div class="stat-sub">In progress</div>
+      </div>
+      <div class="stat anim-up" style="animation-delay:.15s">
+        <div class="stat-top"><div class="stat-label">Failed</div><div class="stat-icon" style="background:rgba(239,68,68,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--crit)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div></div>
+        <div class="stat-val" style="color:var(--crit)">${dashboardStats.failed_scans || 0}</div>
+        <div class="stat-sub">Need review</div>
+      </div>
+      <div class="stat anim-up" style="animation-delay:.2s">
+        <div class="stat-top"><div class="stat-label">Total Findings</div><div class="stat-icon" style="background:rgba(249,115,22,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--high)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div></div>
+        <div class="stat-val" style="color:var(--high)">${dashboardStats.total_findings || 0}</div>
+        <div class="stat-sub">Highest: ${dashboardStats.highest_severity || 'Info'}</div>
+      </div>
+    `;
+    return;
+  }
+
   el.innerHTML = `
     <div class="stat anim-up" style="animation-delay:0s">
       <div class="stat-top"><div class="stat-label">Total Vulnerabilities</div><div class="stat-icon" style="background:rgba(91,141,184,0.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div></div>
@@ -816,6 +965,30 @@ function showDetail(idx) {
 function renderScanInfo() {
   const d = getSiteData();
   const el = document.getElementById('scanInfo');
+
+  if (activeSite === 'all' && dashboardStats && Array.isArray(dashboardStats.recent_scans)) {
+    if (!dashboardStats.recent_scans.length) {
+      el.innerHTML = '<div style="padding:8px 0;color:var(--dim);font-size:0.78rem">No recent scans yet</div>';
+      return;
+    }
+
+    el.innerHTML = dashboardStats.recent_scans.map(s => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:10px">
+        <div style="min-width:0">
+          <div style="font-size:0.78rem;color:#E2E8F0;font-weight:500">CYBERSCAN-${s.id}</div>
+          <div style="font-size:0.68rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${s.target}</div>
+          <div style="font-size:0.68rem;color:var(--dim)">${s.created_at}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:0.78rem;font-weight:600;color:${s.status==='completed'?'var(--low)':s.status==='running'?'var(--accent)':'var(--crit)'}">${String(s.status || 'completed').toUpperCase()}</div>
+          <div style="font-size:0.68rem;color:var(--dim)">${s.findings_count || 0} finding(s)</div>
+          <div style="font-size:0.68rem;color:var(--accent)">${s.highest_severity || 'Info'}</div>
+        </div>
+      </div>
+    `).join('');
+    return;
+  }
+
   el.innerHTML = d.siteScans.map(s => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
       <div>
@@ -844,6 +1017,24 @@ function renderNotifs() {
 }
 
 function clearNotifs() { notifs = []; renderNotifs(); }
+
+if (typeof io !== 'undefined') {
+  const socket = io();
+
+  socket.on('log', msg => {
+    const text = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    notifs.unshift({title:'Scan log',desc:text,time:'Just now',type:'info'});
+    notifs = notifs.slice(0, 10);
+    toast(text,'info');
+    renderNotifs();
+  });
+
+  socket.on('scan_complete', data => {
+    if (data && data.scan_id) {
+      pollScanStatus(data.scan_id);
+    }
+  });
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  DOWNLOADS
@@ -1070,26 +1261,75 @@ function doExport(format) {
 //  NEW SCAN
 // ══════════════════════════════════════════════════════════════════════════════
 
+async function pollScanStatus(scanId) {
+  try {
+    const response = await fetch(`/scan-status/${scanId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to read scan status');
+    }
+
+    const scan = upsertScan(data.scan);
+
+    if (scan.status === 'running') {
+      loadDashboardStats().then(renderAll);
+      scanTimer = setTimeout(() => pollScanStatus(scanId), 2000);
+      return;
+    }
+
+    scanInProgress = false;
+    await loadDashboardStats();
+    toast(`Scan ${scan.status}: ${scan.target}`,'success');
+    notifs.unshift({
+      title: `Scan ${scan.status}`,
+      desc: `${scan.target} - ${scan.results.length} finding(s)`,
+      time: 'Just now',
+      type: scan.status === 'failed' ? 'error' : 'success'
+    });
+    renderAll();
+
+  } catch (err) {
+    scanInProgress = false;
+    toast(err.message || 'Failed to update scan status','error');
+    notifs.unshift({title:'Scan status error',desc:err.message || 'Unknown error',time:'Just now',type:'error'});
+    renderAll();
+  }
+}
+
 function openNewScan(prefill) {
   document.getElementById('newScanModal').classList.add('open');
   document.getElementById('scanUrl').value = prefill || '';
+  document.getElementById('scanMode').value = 'standard';
   renderCbs();
   closeDDs();
 }
 
-function renderCbs() {
-  document.getElementById('scanCbGroup').innerHTML = modules.map(m=>`<div class="cb-item checked" onclick="this.classList.toggle('checked')">${m}</div>`).join('');
+function renderCbs(selectedModules = modules) {
+  const selected = new Set(selectedModules);
+  document.getElementById('scanCbGroup').innerHTML = modules.map(m=>`<div class="cb-item ${selected.has(m) ? 'checked' : ''}" onclick="this.classList.toggle('checked')">${m}</div>`).join('');
+}
+
+function applyScanMode(mode) {
+  if (mode === 'quick') {
+    renderCbs(quickScanModules);
+    toast('Quick Scan selected: safe demo scanners only','info');
+    return;
+  }
+
+  renderCbs(modules);
 }
 
 function resetScanForm() {
   document.getElementById('scanUrl').value = '';
+  document.getElementById('scanMode').value = 'standard';
   renderCbs();
 }
 
-function startScan() {
+async function startScan() {
   const url = document.getElementById('scanUrl').value.trim();
   if (!url) { toast('Please enter a target URL','error'); return; }
-  const sel = [...document.querySelectorAll('#scanCbGroup .cb-item.checked')].map(e=>e.textContent);
+  const sel = [...document.querySelectorAll('#scanCbGroup .cb-item.checked')].map(e=>moduleValues[e.textContent] || e.textContent);
   if (!sel.length) { toast('Select at least one scanner','error'); return; }
   closeM('newScanModal');
   const newId = 'CYBERSCAN-'+String(scans.length+1).padStart(3,'0');
@@ -1100,34 +1340,32 @@ function startScan() {
   toast('Scan started: '+url,'info');
   renderAll();
 
-  const vulnT = [
-    {name:'SQL Injection — Authentication Bypass',result:'Vulnerable',severity:'Critical',cve:'CVE-2020-17526',owasp:'A03:2021-Injection',cvss:9.8,endpoint:'/login',param:'username',detail:'User input in login form is concatenated into SQL query. Payload: admin\'-- bypasses authentication'},
-    {name:'Blind XSS — Stored Payload',result:'Vulnerable',severity:'High',cve:'CVE-2022-31629',owasp:'A03:2021-Injection',cvss:7.4,endpoint:'/feedback',param:'message',detail:'Blind XSS payload stored and executed in admin panel. Out-of-band callback received'},
-    {name:'Clickjacking — Missing X-Frame-Options',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:4.3,endpoint:'HTTP Headers',param:'N/A',detail:'X-Frame-Options and CSP frame-ancestors headers are missing. Page can be embedded in an iframe'},
-    {name:'CORS Misconfiguration — Wildcard Origin',result:'Vulnerable',severity:'High',cve:'CVE-2021-21234',owasp:'A05:2021-Security Misconfiguration',cvss:7.5,endpoint:'/api/data',param:'Origin',detail:'Access-Control-Allow-Origin: * with credentials enabled. Allows cross-origin data theft'},
-    {name:'CSRF — State-Changing Action',result:'Vulnerable',severity:'Medium',cve:'CVE-2021-24239',owasp:'A01:2021-Broken Access Control',cvss:5.4,endpoint:'/update-profile',param:'N/A',detail:'No anti-CSRF token found on profile update. Attacker can submit forged requests on behalf of authenticated users'},
-    {name:'Directory Scan — Exposed Paths',result:'Found',severity:'Medium',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:5.3,endpoint:'/admin, /backup, /.git',param:'N/A',detail:'Sensitive directories discovered: /admin (200), /backup (200), /.git (403). May expose source code or admin interface'},
-    {name:'File Upload — Unrestricted Upload',result:'Vulnerable',severity:'Critical',cve:'CVE-2021-44228',owasp:'A03:2021-Injection',cvss:9.8,endpoint:'/upload',param:'file',detail:'Server accepts PHP/executable files without validation. Remote code execution via uploaded shell confirmed'},
-    {name:'GraphQL — Introspection Enabled',result:'Exposed',severity:'Low',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:3.1,endpoint:'/graphql',param:'query',detail:'GraphQL introspection is enabled in production. Full schema exposed allowing enumeration of all types and fields'},
-    {name:'Host Header Injection',result:'Vulnerable',severity:'High',cve:'CVE-2022-28525',owasp:'A05:2021-Security Misconfiguration',cvss:7.2,endpoint:'/reset-password',param:'Host',detail:'Host header reflected in password reset email link without validation. Can redirect victim to attacker-controlled domain'},
-    {name:'HTML Injection — Reflected Input',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A03:2021-Injection',cvss:5.4,endpoint:'/profile',param:'bio',detail:'HTML tags injected via bio field are rendered in page. Allows UI redressing and phishing within the site'},
-    {name:'IDOR — Insecure Direct Object Reference',result:'Vulnerable',severity:'High',cve:'N/A',owasp:'A01:2021-Broken Access Control',cvss:8.1,endpoint:'/api/users/{id}',param:'id',detail:'Changing user ID parameter exposes other users\' data. No authorization check on resource ownership'},
-    {name:'Info Scan — Server Disclosure',result:'Exposed',severity:'Info',cve:'N/A',owasp:'A05:2021-Security Misconfiguration',cvss:0.0,endpoint:'HTTP Headers',param:'N/A',detail:'Server header reveals: Apache/2.4.51 (Ubuntu). Version disclosure aids targeted exploitation'},
-    {name:'Open Redirect — Unvalidated Redirect',result:'Vulnerable',severity:'Medium',cve:'CVE-2022-28525',owasp:'A01:2021-Broken Access Control',cvss:4.3,endpoint:'/logout',param:'next',detail:'Redirect URL not validated. Can be used for phishing: /logout?next=https://evil.com'},
-    {name:'Path Traversal — File Read',result:'Vulnerable',severity:'High',cve:'CVE-2021-42013',owasp:'A01:2021-Broken Access Control',cvss:7.5,endpoint:'/download',param:'file',detail:'Directory traversal confirmed. Payload: ../../etc/passwd returns system files'},
-    {name:'Rate Limit — Brute Force Possible',result:'Vulnerable',severity:'Medium',cve:'N/A',owasp:'A07:2021-Identification Failures',cvss:5.3,endpoint:'/login',param:'N/A',detail:'No rate limiting on login endpoint. 1000 requests/minute accepted without lockout. Brute force attack feasible'},
-    {name:'SSRF — Internal Network Access',result:'Vulnerable',severity:'Critical',cve:'CVE-2021-26085',owasp:'A10:2021-SSRF',cvss:9.1,endpoint:'/fetch',param:'url',detail:'Server-Side Request Forgery confirmed. Internal metadata endpoint accessible: http://169.254.169.254/latest/meta-data/'},
-    {name:'Stored XSS — Persistent Payload',result:'Vulnerable',severity:'High',cve:'CVE-2019-12345',owasp:'A03:2021-Injection',cvss:7.5,endpoint:'/comments',param:'body',detail:'XSS payload stored in comment body and executed for all users viewing the page. Session hijacking possible'},
-    {name:'Weak Password Scanner — Default Credentials',result:'Vulnerable',severity:'Critical',cve:'N/A',owasp:'A07:2021-Identification Failures',cvss:9.8,endpoint:'/admin',param:'credentials',detail:'Admin panel accessible with default credentials admin:admin123. Immediate account takeover possible'},
-    {name:'XSS — Reflected Cross-Site Scripting',result:'Vulnerable',severity:'High',cve:'CVE-2019-12345',owasp:'A03:2021-Injection',cvss:7.5,endpoint:'/search',param:'q',detail:'Search parameter reflects user input without encoding. Script injection confirmed via alert(1) payload'},
-    {name:'Auth Scanner — Broken Authentication',result:'Vulnerable',severity:'Critical',cve:'CVE-2020-17530',owasp:'A07:2021-Identification Failures',cvss:9.8,endpoint:'/api/auth',param:'token',detail:'JWT token accepted without signature verification. Forged tokens grant admin access'},
-    {name:'SSRF Scanner — Cloud Metadata',result:'Vulnerable',severity:'High',cve:'CVE-2022-22963',owasp:'A10:2021-SSRF',cvss:8.5,endpoint:'/proxy',param:'target',detail:'Cloud metadata service reachable via SSRF. AWS credentials exposed at 169.254.169.254/latest/meta-data/iam/'}
-  ];
-  let vi = 0; const mx = 3+Math.floor(Math.random()*5);
-  scanTimer = setInterval(()=>{
-    if(vi<mx&&Math.random()>0.5){const t=vulnT[vi%vulnT.length];ns.results.push({...t});vi++;renderAll();}
-    if(vi>=mx){clearInterval(scanTimer);ns.status='completed';scanInProgress=false;toast('Scan completed: '+url+' — '+ns.results.length+' vulnerabilities found','success');notifs.unshift({title:'Scan completed: '+url,desc:ns.results.length+' vulnerabilities found',time:'Just now',type:'success'});if(ns.results.some(r=>r.severity==='Critical')){notifs.unshift({title:'Critical vulnerability detected!',desc:url+' — '+ns.results.filter(r=>r.severity==='Critical').length+' Critical finding(s)',time:'Just now',type:'error'});}renderAll();}
-  },800);
+  try {
+    const response = await fetch('/scan-live', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url, vulns: sel})
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to start scan');
+    }
+
+    ns.id = `CYBERSCAN-${data.scan_id}`;
+    ns.backend_id = data.scan_id;
+    notifs.unshift({title:'Scan started',desc:url,time:'Just now',type:'info'});
+    toast('Real scan started: '+url,'success');
+    await loadDashboardStats();
+    renderAll();
+    pollScanStatus(data.scan_id);
+  } catch (err) {
+    scanInProgress = false;
+    ns.status = 'failed';
+    toast(err.message || 'Scan failed to start','error');
+    notifs.unshift({title:'Scan error',desc:err.message || 'Unknown error',time:'Just now',type:'error'});
+    renderAll();
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
