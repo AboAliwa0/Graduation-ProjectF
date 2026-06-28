@@ -1,0 +1,58 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - cyberscan-redis:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  cyberscan:
+    build: .
+    env_file: .env
+    environment:
+      SCAN_QUEUE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      SOCKETIO_MESSAGE_QUEUE: redis://redis:6379/1
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - cyberscan-data:/app/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    env_file: .env
+    environment:
+      SCAN_QUEUE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      SOCKETIO_MESSAGE_QUEUE: redis://redis:6379/1
+    volumes:
+      - cyberscan-data:/app/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  cyberscan-data:
+  cyberscan-redis:

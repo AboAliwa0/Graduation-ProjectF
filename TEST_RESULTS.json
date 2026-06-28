@@ -1,0 +1,55 @@
+{
+  "product": "CyberScan Professional",
+  "version": "5.0.0",
+  "generated_at": "2026-06-26T21:52:48+00:00",
+  "automated_tests": {
+    "total": 54,
+    "passed": 54,
+    "failed": 0,
+    "duration_seconds": 28.6
+  },
+  "scanner_modules": {
+    "total": 26,
+    "ids": [
+      "auth_scanner",
+      "authorization_matrix_scanner",
+      "blind_xss",
+      "clickjacking_scanner",
+      "cors_scanner",
+      "csrf_scan",
+      "dir_scan",
+      "file_upload",
+      "graphql_scanner",
+      "grpc_scanner",
+      "host_header_scanner",
+      "html_injection",
+      "idor",
+      "info_scan",
+      "modern_spa_scanner",
+      "oidc_scanner",
+      "open_redirect_scanner",
+      "openapi_scanner",
+      "path_traversal",
+      "rate_limit",
+      "sql_injection",
+      "ssrf_scanner",
+      "stored_xss_scanner",
+      "weak_password_scanner",
+      "websocket_scanner",
+      "xss"
+    ]
+  },
+  "quality_gates": {
+    "python_compileall": "passed",
+    "dashboard_javascript_syntax": "passed",
+    "dependency_import_smoke": "passed (16 modules)",
+    "docker_compose_yaml_parse": "passed",
+    "secret_pattern_scan": "passed",
+    "chromium_real_browser_test": "passed",
+    "websocket_real_server_test": "passed",
+    "grpc_reflection_real_server_test": "passed",
+    "redis_encryption_recovery_tests": "passed",
+    "global_pip_check": "external environment warning: MoviePy/Pillow conflict; neither is a CyberScan dependency"
+  },
+  "scope_note": "100% refers only to the included automated test suite, not universal vulnerability coverage."
+}

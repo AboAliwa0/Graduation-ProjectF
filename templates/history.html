@@ -378,7 +378,7 @@
 
         <div class="header-actions">
             <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
-            <a href="/logout" class="btn btn-primary">Logout</a>
+            <form method="post" action="/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-primary">Logout</button></form>
         </div>
     </div>
 
@@ -438,6 +438,9 @@
                             </span>
                             <span><strong>Findings:</strong> {{ scan.findings_count }}</span>
                             <span><strong>Highest:</strong> <span class="sev-{{ scan.highest_severity|lower }}">{{ scan.highest_severity }}</span></span>
+                            <span><strong>Progress:</strong> {{ scan.progress }}%</span>
+                            <span><strong>Requests:</strong> {{ scan.request_count }}/{{ scan.request_budget }}</span>
+                            <span><strong>Risk:</strong> {{ scan.risk_score }}/100</span>
                         </div>
                         <a href="/scan/{{ scan.id }}" class="btn btn-primary">View Details</a>
                     </div>

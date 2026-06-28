@@ -1,63 +1,64 @@
-import requests
-
-# -----------------------
-# 🧠 META
-# -----------------------
+from services.graphql_support import inspect_graphql_schema
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled, current_runtime
+from vulnerabilities.common import error_result, make_result
 
 meta = {
-    "name": "GraphQL Introspection",
-    "severity": "Medium",
-    "description": "Detects if GraphQL introspection is enabled"
+    "name": "GraphQL Schema Inventory",
+    "severity": "Low",
+    "description": "Safely inventories GraphQL root operations and schema metadata through standard introspection.",
+    "category": "API Security",
 }
-
-# 👇 user must provide GraphQL endpoint
-inputs = ["endpoint"]
-
-
-# -----------------------
-# 🚀 SCAN
-# -----------------------
-
-def scan(url, endpoint=None):
-    if not endpoint:
-        return {
-            "vulnerable": False,
-            "result": "GraphQL endpoint not provided",
-            "severity": "Low"
-        }
-
-    query = {
-        "query": "{ __schema { types { name } } }"
+inputs = [
+    {
+        "name": "endpoint",
+        "label": "GraphQL endpoint",
+        "type": "url",
+        "required": False,
+        "placeholder": "https://target.example/graphql",
+        "help": "Leave empty to use the target URL. No application queries or mutations are executed.",
     }
+]
 
+
+def scan(url, endpoint=""):
+    target = endpoint or url
+    runtime = current_runtime()
     try:
-        r = requests.post(endpoint, json=query, timeout=10)
-
-        try:
-            data = r.json()
-        except:
-            return {
-                "vulnerable": False,
-                "result": "Invalid JSON response",
-                "severity": "Low"
+        inventory = inspect_graphql_schema(target)
+        artifact = inventory.to_dict()
+        if runtime is not None:
+            runtime.artifacts["graphql"] = artifact
+        if inventory.introspection_enabled:
+            evidence = {
+                "status_code": inventory.status_code,
+                "query_type": inventory.query_type,
+                "mutation_type": inventory.mutation_type,
+                "subscription_type": inventory.subscription_type,
+                "operation_fields": inventory.operation_fields,
+                "type_count": len(inventory.types),
             }
-
-        if "data" in data:
-            return {
-                "vulnerable": True,
-                "result": "GraphQL introspection is enabled",
-                "severity": "Medium"
-            }
-
-        return {
-            "vulnerable": False,
-            "result": "No introspection detected",
-            "severity": "Low"
-        }
-
-    except Exception as e:
-        return {
-            "vulnerable": False,
-            "result": f"Error: {str(e)}",
-            "severity": "Low"
-        }
+            return make_result(
+                True,
+                "Unauthenticated GraphQL introspection is enabled. This is schema exposure rather than proof of broken authorization.",
+                severity="Low",
+                confidence="High",
+                status="potential",
+                evidence=evidence,
+                recommendation="Restrict introspection in production when unnecessary, apply query depth/complexity controls, and enforce field- and object-level authorization independently of schema visibility.",
+                endpoint=inventory.endpoint,
+                cwe="CWE-200",
+                cvss=3.1,
+            )
+        return make_result(
+            False,
+            "GraphQL introspection was not confirmed.",
+            severity="Info",
+            confidence="High",
+            evidence={"errors": inventory.errors, "status_code": inventory.status_code},
+            endpoint=inventory.endpoint,
+            cwe="CWE-200",
+        )
+    except (ScanCancelled, RequestBudgetExceeded):
+        raise
+    except Exception as exc:
+        return error_result(f"GraphQL inventory failed: {exc}", endpoint=target)

@@ -160,6 +160,7 @@
     <div class="subtitle">Register to start scanning vulnerabilities</div>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="input-group">
             <label>Email</label>

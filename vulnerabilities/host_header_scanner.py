@@ -1,105 +1,64 @@
-import requests
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
+from urllib.parse import urlparse
 
-# -----------------------
-# 🧠 META
-# -----------------------
+from vulnerabilities.common import body_text, error_result, make_result, safe_request, unique_token
 
 meta = {
     "name": "Host Header Injection",
-    "severity": "High",
-    "description": "Detects host header injection and poisoning vulnerabilities"
+    "severity": "Medium",
+    "description": "Checks whether an untrusted Host/X-Forwarded-Host value is used in response content or redirects.",
+    "category": "Request Routing",
 }
+inputs = []
 
-inputs = []  # 👈 no user input needed
-
-
-# -----------------------
-# 🚀 SCAN
-# -----------------------
 
 def scan(url):
-    session = requests.Session()
-    evil_host = "evil.com"
-
-    test_headers = [
-        {"Host": evil_host},
-        {"X-Forwarded-Host": evil_host},
-        {"X-Host": evil_host},
-        {"X-Forwarded-Server": evil_host},
-        {"Forwarded": f"for=127.0.0.1;host={evil_host}"},
-    ]
-
-    findings = []
-
+    marker = f"{unique_token('host')}.invalid"
+    observations = []
+    requests_made = 0
     try:
-        # 🔹 baseline
-        normal = session.get(url, timeout=10)
-        base_len = len(normal.text)
-
-    except Exception as e:
-        return {
-            "vulnerable": False,
-            "result": f"Baseline request failed: {str(e)}",
-            "severity": "Low"
-        }
-
-    for headers in test_headers:
-        header_name = list(headers.keys())[0]
-
-        try:
-            r = session.get(url, headers=headers, timeout=10)
-            response = r.text
-            current_len = len(response)
-
-            # 🔥 reflection
-            if evil_host in response:
-                findings.append({
-                    "issue": f"Reflected Host Header via {header_name}",
-                    "severity": "High"
-                })
-                continue
-
-            # 🔥 poisoning
-            poisoned = [
-                f"href=\"http://{evil_host}",
-                f"href='http://{evil_host}",
-                f"action=\"http://{evil_host}",
-                f"url=http://{evil_host}",
-            ]
-
-            if any(p in response for p in poisoned):
-                findings.append({
-                    "issue": f"Poisoned response via {header_name}",
-                    "severity": "High"
-                })
-                continue
-
-            # 🔥 response diff
-            if abs(current_len - base_len) > 50:
-                findings.append({
-                    "issue": f"Response changed via {header_name}",
-                    "severity": "Medium"
+        for header_name in ("Host", "X-Forwarded-Host"):
+            response = safe_request("GET", url, headers={header_name: marker}, allow_redirects=False)
+            requests_made += 1
+            body = body_text(response)
+            location = response.headers.get("Location", "")
+            reflected_body = marker.lower() in body.lower()
+            reflected_location = marker.lower() in location.lower()
+            if reflected_body or reflected_location:
+                observations.append({
+                    "header": header_name,
+                    "status_code": response.status_code,
+                    "reflected_in_body": reflected_body,
+                    "reflected_in_location": reflected_location,
+                    "location": location,
                 })
 
-        except:
-            continue
-
-    # -----------------------
-    # 📊 RESULT
-    # -----------------------
-
-    if findings:
-        issues = " | ".join([f["issue"] for f in findings])
-        max_severity = max(f["severity"] for f in findings)
-
-        return {
-            "vulnerable": True,
-            "result": issues,
-            "severity": max_severity
-        }
-
-    return {
-        "vulnerable": False,
-        "result": "No Host Header issues detected",
-        "severity": "Low"
-    }
+        if observations:
+            high_confidence = any(item["reflected_in_location"] for item in observations)
+            return make_result(
+                True,
+                "An attacker-controlled host value was used in a redirect." if high_confidence else "An attacker-controlled host value was reflected in response content; exploitability requires manual validation.",
+                severity="High" if high_confidence else "Medium",
+                confidence="High" if high_confidence else "Low",
+                status="confirmed" if high_confidence else "potential",
+                evidence={"marker": marker, "observations": observations},
+                recommendation="Validate Host headers against an allowlist and configure trusted proxy headers explicitly.",
+                endpoint=url,
+                cwe="CWE-644",
+                cvss=8.1 if high_confidence else 5.3,
+                requests_made=requests_made,
+            )
+        return make_result(
+            False,
+            "No attacker-controlled host reflection was observed.",
+            severity="Info",
+            confidence="High",
+            evidence={"marker": marker, "target_host": urlparse(url).hostname},
+            endpoint=url,
+            cwe="CWE-644",
+            requests_made=requests_made,
+        )
+    except (ScanCancelled, RequestBudgetExceeded):
+        raise
+    except Exception as exc:
+        return error_result(f"Host-header check failed: {exc}", endpoint=url, requests_made=requests_made)

@@ -1,78 +1,79 @@
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
 import time
-from concurrent.futures import ThreadPoolExecutor
-import requests
 
-# -----------------------
-# 🧠 META
-# -----------------------
+from vulnerabilities.common import body_text, error_result, inconclusive, make_result, safe_request
 
 meta = {
-    "name": "Broken Authentication",
-    "severity": "High",
-    "description": "Detects lack of rate limiting or brute force protection"
+    "name": "Login Abuse Protection",
+    "severity": "Medium",
+    "description": "Performs five authorized failed login attempts and observes rate-limit or lockout signals.",
+    "category": "Authentication",
 }
+inputs = [
+    {"name": "login_url", "label": "Login URL", "type": "url", "required": True, "placeholder": "https://target.example/login"},
+    {"name": "username_field", "label": "Username field", "type": "text", "required": False, "placeholder": "username"},
+    {"name": "password_field", "label": "Password field", "type": "text", "required": False, "placeholder": "password"},
+    {"name": "test_username", "label": "Authorized test username", "type": "text", "required": True, "placeholder": "security-test"},
+    {"name": "failure_marker", "label": "Normal failure marker", "type": "text", "required": False, "placeholder": "Invalid credentials"},
+]
 
-# inputs required from user
-inputs = ["login_url", "username_field", "password_field"]
-
-
-# -----------------------
-# 🚀 CORE FUNCTIONS
-# -----------------------
-
-def send_request(session, url, data):
-    start = time.time()
-    r = session.post(url, data=data)
-    return r.status_code, time.time() - start
+MAX_ATTEMPTS = 5
 
 
-def scan(url, login_url, username_field="username", password_field="password"):
-    session = requests.Session()
+def scan(url, login_url="", username_field="username", password_field="password", test_username="", failure_marker=""):
+    if not login_url or not test_username:
+        return inconclusive("Login URL and an authorized test username are required.", endpoint=url)
+    observations = []
+    try:
+        for index in range(MAX_ATTEMPTS):
+            started = time.perf_counter()
+            response = safe_request(
+                "POST",
+                login_url,
+                data={username_field or "username": test_username, password_field or "password": f"CyberScan-Wrong-{index}"},
+                allow_redirects=False,
+            )
+            elapsed = time.perf_counter() - started
+            observations.append({
+                "attempt": index + 1,
+                "status": response.status_code,
+                "retry_after": response.headers.get("Retry-After", ""),
+                "elapsed": round(elapsed, 3),
+                "failure_marker_seen": bool(failure_marker and failure_marker in body_text(response)),
+            })
+            if response.status_code == 429 or response.headers.get("Retry-After"):
+                break
+            time.sleep(0.08)
 
-    data = {
-        username_field: "admin",
-        password_field: "wrongpass"
-    }
+        protected = any(item["status"] == 429 or item["retry_after"] for item in observations)
+        delayed = len(observations) >= 3 and observations[-1]["elapsed"] >= max(1.5, observations[0]["elapsed"] * 3)
+        evidence = {"attempts": observations, "max_attempts": MAX_ATTEMPTS}
+        if protected or delayed:
+            return make_result(
+                False,
+                "Observable throttling, lockout, or progressive delay was detected.",
+                severity="Info",
+                confidence="High" if protected else "Medium",
+                evidence=evidence,
+                endpoint=login_url,
+                cwe="CWE-307",
+                requests_made=len(observations),
+            )
 
-    results = []
-
-    def task():
-        return send_request(session, login_url, data)
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(task) for _ in range(10)]
-
-        for f in futures:
-            try:
-                status, delay = f.result()
-                results.append((status, delay))
-            except:
-                pass
-
-    blocked = any(s == 429 for s, _ in results)
-    slow = any(d > 2 for _, d in results)
-
-    # -----------------------
-    # 📊 RESULT
-    # -----------------------
-
-    if not blocked and not slow:
-        return {
-            "vulnerable": True,
-            "result": "No rate limiting detected (Brute-force possible)",
-            "severity": "High"
-        }
-
-    elif slow:
-        return {
-            "vulnerable": False,
-            "result": "Server delay detected (possible protection)",
-            "severity": "Medium"
-        }
-
-    else:
-        return {
-            "vulnerable": False,
-            "result": "Rate limiting detected",
-            "severity": "Low"
-        }
+        return make_result(
+            True,
+            "No observable throttling was triggered during five failed attempts. This is a potential weakness, not proof of unlimited brute force.",
+            severity="Medium",
+            confidence="Low",
+            status="potential",
+            evidence=evidence,
+            recommendation="Add per-account and per-IP throttling, progressive delays, monitoring, and MFA.",
+            endpoint=login_url,
+            cwe="CWE-307",
+            cvss=5.3,
+            requests_made=len(observations),
+        )
+    except (ScanCancelled, RequestBudgetExceeded):
+        raise
+    except Exception as exc:
+        return error_result(f"Login-abuse protection check failed: {exc}", endpoint=login_url or url, requests_made=len(observations))

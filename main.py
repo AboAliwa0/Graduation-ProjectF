@@ -1,119 +1,21 @@
-import os
+from __future__ import annotations
+
 import importlib
-import inspect
+import pkgutil
+from types import ModuleType
 
-from backend.core.plugin import Plugin
+import vulnerabilities
 
-# Scanners in this project inherit from BaseScanner -> Plugin.
-# No need for any 'Plugins' registry; we discover classes dynamically.
-
-
+EXCLUDED_MODULES = {"common"}
 
 
-import os
-import importlib
-import inspect
-
-from backend.core.plugin import Plugin
-
-
-def load_scanners():
-    """
-    Load scanners from both the new Plugin Framework and the
-    legacy vulnerabilities folder.
-
-    Priority:
-        backend/plugins
-            ↓
-        vulnerabilities
-    """
-
-    scanners = []
-    loaded = set()
-
-    # =====================================================
-    # New Plugin Framework
-    # =====================================================
-
-    plugins_folder = os.path.join("backend", "plugins")
-
-    if os.path.isdir(plugins_folder):
-
-        for file in os.listdir(plugins_folder):
-
-            if not file.endswith(".py"):
-                continue
-
-            if file.startswith("__"):
-                continue
-
-            module_name = file[:-3]
-
-            try:
-
-                module = importlib.import_module(
-                    f"backend.plugins.{module_name}"
-                )
-
-                for _, cls in inspect.getmembers(module, inspect.isclass):
-
-                   if (
-    issubclass(cls, Plugin)
-    and cls is not Plugin
-    and cls.__module__ == module.__name__
-):
-
-                        scanners.append(cls())
-
-                        loaded.add(module_name.lower())
-
-                        print(f"[PLUGIN] Loaded: {module_name}")
-
-            except Exception as ex:
-
-                print(
-                    f"[PLUGIN ERROR] {module_name}: {ex}"
-                )
-
-    # =====================================================
-    # Legacy Framework
-    # =====================================================
-
-    legacy_folder = "vulnerabilities"
-
-    if os.path.isdir(legacy_folder):
-
-        for file in os.listdir(legacy_folder):
-
-            if not file.endswith(".py"):
-                continue
-
-            if file.startswith("__"):
-                continue
-
-            module_name = file[:-3]
-
-            if module_name.lower() in loaded:
-                continue
-
-            try:
-
-                module = importlib.import_module(
-                    f"vulnerabilities.{module_name}"
-                )
-
-                if hasattr(module, "scan"):
-
-                    scanners.append(module)
-
-                    print(f"[LEGACY] Loaded: {module_name}")
-
-            except Exception as ex:
-
-                print(
-                    f"[LEGACY ERROR] {module_name}: {ex}"
-                )
-
-    print(f"\n[INFO] Total Scanners Loaded: {len(scanners)}\n")
-
+def load_scanners() -> list[ModuleType]:
+    """Load each scanner module exactly once from ``vulnerabilities``."""
+    scanners: list[ModuleType] = []
+    for module_info in sorted(pkgutil.iter_modules(vulnerabilities.__path__), key=lambda item: item.name):
+        if module_info.name.startswith("_") or module_info.name in EXCLUDED_MODULES:
+            continue
+        module = importlib.import_module(f"vulnerabilities.{module_info.name}")
+        if callable(getattr(module, "scan", None)):
+            scanners.append(module)
     return scanners

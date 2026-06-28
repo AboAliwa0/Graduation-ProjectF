@@ -248,6 +248,12 @@
             <a href="/history" class="btn btn-secondary">History</a>
             <a href="/scan/{{ scan.id }}/report" class="btn btn-secondary">Download PDF Report</a>
             <a href="/scan/{{ scan.id }}/export-json" class="btn btn-secondary">Export JSON</a>
+            <a href="/scan/{{ scan.id }}/export-sarif" class="btn btn-secondary">Export SARIF</a>
+            <a href="/scan/{{ scan.id }}/export-artifacts" class="btn btn-secondary">Modern Artifacts</a>
+            <a href="/scan/{{ scan.id }}/export-har" class="btn btn-secondary">Sanitized HAR</a>
+            {% if scan.status in ['queued', 'running', 'cancelling'] %}
+            <form action="/scan/{{ scan.id }}/cancel" method="post" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary" type="submit">Cancel Scan</button></form>
+            {% endif %}
             <a href="/dashboard" class="btn btn-primary">Dashboard</a>
         </div>
     </div>
@@ -276,7 +282,28 @@
             <div class="label">Highest Severity</div>
             <div class="value sev-{{ scan.highest_severity|lower }}">{{ scan.highest_severity }}</div>
         </div>
+        <div class="stat"><div class="label">Progress</div><div class="value">{{ scan.progress }}%</div></div>
+        <div class="stat"><div class="label">Risk / Security Score</div><div class="value">{{ scan.risk_score }}/100 · {{ scan.security_score }}/100</div></div>
+        <div class="stat"><div class="label">HTTP Requests</div><div class="value">{{ scan.request_count }} / {{ scan.request_budget }}</div></div>
+        <div class="stat"><div class="label">Tool Version</div><div class="value">{{ scan.tool_version }}</div></div>
     </div>
+
+    <div class="card">
+        <div class="scanner-title">Modern Application Inventory</div>
+        <div class="meta-grid">
+            <div class="meta-box"><div class="meta-label">Rendered pages</div><div class="meta-value">{{ scan.artifact_summary.browser_pages }}</div></div>
+            <div class="meta-box"><div class="meta-label">Browser network requests</div><div class="meta-value">{{ scan.artifact_summary.network_requests }}</div></div>
+            <div class="meta-box"><div class="meta-label">OpenAPI operations</div><div class="meta-value">{{ scan.artifact_summary.openapi_operations }}</div></div>
+            <div class="meta-box"><div class="meta-label">GraphQL types</div><div class="meta-value">{{ scan.artifact_summary.graphql_types }}</div></div>
+            <div class="meta-box"><div class="meta-label">WebSocket endpoints</div><div class="meta-value">{{ scan.artifact_summary.websockets }}</div></div>
+            <div class="meta-box"><div class="meta-label">gRPC services</div><div class="meta-value">{{ scan.artifact_summary.grpc_services }}</div></div>
+            <div class="meta-box"><div class="meta-label">Authorization comparisons</div><div class="meta-value">{{ scan.artifact_summary.authorization_observations }}</div></div>
+            <div class="meta-box"><div class="meta-label">Forms discovered</div><div class="meta-value">{{ scan.artifact_summary.forms }}</div></div>
+        </div>
+    </div>
+
+    {% if scan.current_scanner %}<div class="card"><strong>Current scanner:</strong> {{ scan.current_scanner }}</div>{% endif %}
+    {% if scan.error_message %}<div class="card" style="border-color:rgba(248,113,113,.35)"><strong>Execution note:</strong> {{ scan.error_message }}</div>{% endif %}
 
     {% if scan.groups %}
         {% for group in scan.groups %}
@@ -289,7 +316,7 @@
                             <div>
                                 <div class="finding-title">{{ finding.scanner }}</div>
                                 <div style="color:var(--muted);font-size:0.86rem;margin-top:4px">
-                                    {{ finding.owasp }} | Confidence: {{ finding.confidence }}
+                                    {{ finding.owasp }} | {{ finding.asvs }} | Confidence: {{ finding.confidence }}
                                 </div>
                             </div>
                             <span class="badge sev-{{ finding.severity|lower }}">{{ finding.severity }}</span>
@@ -307,6 +334,14 @@
                             <div class="meta-box">
                                 <div class="meta-label">OWASP Top 10</div>
                                 <div class="meta-value">{{ finding.owasp }}</div>
+                            </div>
+                            <div class="meta-box">
+                                <div class="meta-label">ASVS 5.0 mapping</div>
+                                <div class="meta-value">{{ finding.asvs }}</div>
+                            </div>
+                            <div class="meta-box">
+                                <div class="meta-label">CWE / CVSS</div>
+                                <div class="meta-value">{{ finding.cwe or 'N/A' }} / {{ '%.1f'|format(finding.cvss) }}</div>
                             </div>
                             <div class="meta-box">
                                 <div class="meta-label">Recommendation</div>

@@ -1,264 +1,250 @@
-# CyberScan - ماسح ثغرات تطبيقات الويب
+# CyberScan Professional 5.0
 
-CyberScan هو مشروع تخرج مبني باستخدام Flask لفحص ثغرات تطبيقات الويب بشكل آلي. يوفر المشروع تسجيل مستخدمين، لوحة تحكم، سجل فحوصات، وحدات فحص متعددة، إشعارات مباشرة أثناء الفحص، دعم JWT API، وتحليل اختياري للنتائج باستخدام الذكاء الاصطناعي.
+منصة **Modern DAST منخفضة التأثير** لفحص تطبيقات الويب وواجهات API التي تملكها أو لديك تصريح كتابي واضح لاختبارها. يركز الإصدار 5.0 على التطبيقات الحديثة، جودة الدليل، ومنع النتائج الكاذبة، مع تشغيل آمن افتراضيًا.
 
-> تنبيه أمني: هذا المشروع مخصص للتعلم والاختبار الأمني المصرح به فقط. لا تستخدم CyberScan لفحص أي موقع أو نظام لا تملكه أو لا تملك إذنًا واضحًا لاختباره.
+> لا توجد أداة آلية تستطيع إثبات أمان كل تطبيق بنسبة 100%. الرقم 100% في هذا الإصدار يعني نجاح جميع اختبارات الحزمة المرفقة، وليس تغطية كل ثغرة أو كل منطق أعمال ممكن.
 
-## فكرة المشروع
+## حالة الإصدار
 
-يهدف CyberScan إلى مساعدة المطورين وطلاب الأمن السيبراني ومختبري الاختراق على إجراء فحص أولي لتطبيقات الويب. يقوم المستخدم بإدخال رابط الهدف، واختيار وحدات الفحص المطلوبة، ثم يعرض النظام النتائج داخل لوحة التحكم ويحفظها في قاعدة البيانات لعرضها لاحقًا من صفحة السجل.
+- **26 وحدة فحص واكتشاف**.
+- **54 اختبارًا آليًا** تشمل الحالات المصابة والسليمة ومحرك المتصفح وAPI والطابور الموزع.
+- متصفح Chromium حقيقي عبر Playwright لتطبيقات React وAngular وVue وSPA.
+- OpenAPI 2.0 و3.x، بما في ذلك 3.2.0.
+- GraphQL schema inventory، WebSocket handshake inventory، وgRPC Reflection inventory.
+- OAuth 2.0 / OpenID Connect discovery assessment.
+- مقارنة صلاحيات بين حسابات اختبار متعددة.
+- تشغيل محلي بـThread pool أو تشغيل موزع اختياري عبر Redis مع تشفير مهام الطابور.
+- تصدير PDF وJSON وSARIF وArtifacts وHAR منقح.
+- ربط النتائج بـOWASP Top 10 وفئات ASVS 5.0.
 
-## أهم المميزات
+## إمكانات التطبيقات الحديثة
 
-- تسجيل حساب وتسجيل دخول.
-- تشفير كلمات المرور باستخدام Flask-Bcrypt.
-- حماية صفحات الويب باستخدام Sessions.
-- دعم JWT لبعض واجهات API.
-- تشغيل فحص حقيقي من لوحة التحكم.
-- حفظ سجل الفحوصات لكل مستخدم.
-- قاعدة بيانات SQLite.
-- إشعارات مباشرة أثناء الفحص باستخدام SocketIO.
-- تحليل اختياري للنتائج باستخدام OpenAI API.
-- تصميم Dashboard مناسب لعرض النتائج والإحصائيات.
+### متصفح حقيقي وآمن افتراضيًا
 
-## أنواع الفحوصات الموجودة
+`modern_spa_scanner` يقوم بما يلي:
 
-يتضمن المشروع وحدات فحص لعدد من الثغرات الشائعة، منها:
+- تنفيذ JavaScript داخل Chromium Headless.
+- اكتشاف مسارات SPA والروابط والنماذج.
+- تسجيل طلبات Document وXHR وFetch وWebSocket.
+- اكتشاف مؤشرات React وAngular وVue وSvelte وNuxt.
+- استخدام Playwright Storage State لجلسة اختبار مصرح بها.
+- منع الطلبات التي تغير الحالة مثل POST وPUT وDELETE افتراضيًا.
+- منع الاتصالات الخارجية عن نطاق الهدف افتراضيًا.
+- احتساب طلبات المتصفح ضمن Request Budget.
+- حد زمني للانتقال وعدد أقصى للصفحات.
 
-- SQL Injection
-- XSS
-- Stored XSS
-- Blind XSS
-- SSRF
-- IDOR
-- CSRF
-- CORS Misconfiguration
-- Clickjacking
-- Open Redirect
-- Path Traversal
-- Directory Listing
-- Host Header Injection
-- GraphQL Introspection
-- Weak Password / Authentication Checks
-- Information Disclosure
+### OpenAPI وAPI Discovery
 
-## التقنيات المستخدمة
+- استيراد JSON أو YAML.
+- دعم Swagger/OpenAPI 2.0 وكل إصدارات OpenAPI 3.x.
+- حل `$ref` المحلي مع منع الدوران.
+- منع External References افتراضيًا.
+- التحقق من أن Servers تبقى داخل النطاق المصرح به.
+- جرد Methods وParameters وSecurity Requirements.
+- تنفيذ GET وHEAD وOPTIONS فقط في الوضع الآمن.
+- تنبيه عند Endpoint حساس يبدو غير محمي في العقد.
 
-- Backend: Flask
-- Realtime: Flask-SocketIO
-- Authentication: Flask Sessions, Flask-Bcrypt, Flask-JWT-Extended
-- Database: SQLite
-- Frontend: HTML, CSS, JavaScript, Jinja Templates
-- HTTP Requests: requests
-- HTML Parsing: BeautifulSoup
-- AI Analysis: OpenAI API
-- PDF Helper: reportlab
+### GraphQL وWebSocket وgRPC
 
-## هيكل المشروع
+- GraphQL: جرد Query وMutation وSubscription والأنواع عند السماح بالـIntrospection؛ تفعيل Introspection وحده يصنف `potential` لا `confirmed`.
+- WebSocket: فحص Handshake آمن فقط، دون إرسال رسائل تطبيق أو Fuzzing تلقائي.
+- gRPC: استخدام Server Reflection لجرد الخدمات وملفات Descriptors فقط، دون استدعاء Business RPCs.
 
-```text
-.
-|-- app.py                 # التطبيق الرئيسي والمسارات والتوثيق مع SocketIO
-|-- database.py            # الاتصال بقاعدة البيانات وإنشاء الجداول
-|-- main.py                # تحميل وحدات الفحص ديناميكيًا
-|-- routes_ai.py           # مسار تحليل النتائج بالذكاء الاصطناعي
-|-- ai_analyzer.py         # منطق تحليل النتائج باستخدام OpenAI
-|-- email_sender.py        # إرسال البريد/OTP عند الحاجة
-|-- report.py              # مساعد إنشاء تقارير PDF
-|-- requirements.txt       # مكتبات المشروع
-|-- scanner.db             # قاعدة بيانات SQLite
-|-- templates/             # صفحات الواجهة
-|-- static/                # ملفات CSS والصور
-|-- vulnerabilities/       # وحدات الفحص الأمني
-|-- utils/                 # أدوات مساعدة مشتركة
+### المصادقة والصلاحيات الحديثة
+
+- Headers وCookies عامة داخل الذاكرة فقط.
+- Playwright Storage State دون حفظه في قاعدة البيانات أو التقارير.
+- حتى 4 Auth Profiles بحسابات اختبار مختلفة.
+- مقارنة Role Matrix على Endpoints آمنة ومصرح بها.
+- جرد OIDC Discovery والتحقق من HTTPS وPKCE S256 وخوارزمية `none` وLegacy implicit flows.
+- إزالة Authorization وCookies عند الانتقال إلى Origin مختلف.
+
+## حالات النتائج
+
+| الحالة | معناها |
+|---|---|
+| `confirmed` | الوحدة رصدت دليلًا مباشرًا وفق معيارها المحدد. |
+| `potential` | مؤشر أمني يحتاج مراجعة يدوية. |
+| `not_vulnerable` | لم يظهر المؤشر في السيناريو المنفذ. |
+| `inconclusive` | لم تتوفر شروط كافية للحكم. |
+| `error` | تعذر إكمال الوحدة. |
+
+لكل نتيجة: Severity وConfidence وEvidence وEndpoint وParameter وCWE وCVSS وOWASP وASVS وتوصية إصلاح.
+
+## ضوابط التنفيذ
+
+- تأكيد التفويض إلزامي لكل فحص.
+- Target Scope لكل مستخدم، وقائمة سماح مركزية اختيارية.
+- Private وLoopback وLink-local وCloud metadata محظورة افتراضيًا.
+- DNS وRedirects يعاد التحقق منها.
+- Request Budget صلب، وحد لحجم الاستجابة، وحد زمني.
+- حفظ النتائج الجزئية عند الإلغاء أو نفاد الميزانية.
+- عزل Socket.IO لكل مستخدم وفحص.
+- الأسرار لا تكتب في DB أو Audit أو PDF أو JSON أو HAR.
+- HAR المصدّر لا يحتوي Headers أو Bodies أو Cookies أو Tokens.
+
+## التشغيل السريع
+
+### Windows
+
+```bat
+setup_and_run.bat
 ```
 
-## خطوات التثبيت والتشغيل
-
-1. افتح مجلد المشروع.
-
-2. أنشئ بيئة افتراضية:
+### Linux / macOS
 
 ```bash
-python -m venv venv
+chmod +x setup_and_run.sh
+./setup_and_run.sh
 ```
 
-3. فعّل البيئة الافتراضية.
-
-على Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-على Linux أو macOS:
-
-```bash
-source venv/bin/activate
-```
-
-4. ثبّت المكتبات:
-
-```bash
-pip install -r requirements.txt
-```
-
-5. أنشئ ملف `.env` من `.env.example`.
-
-على Windows:
-
-```bash
-copy .env.example .env
-```
-
-على Linux أو macOS:
-
-```bash
-cp .env.example .env
-```
-
-6. عدّل ملف `.env` وضع القيم المناسبة.
-
-7. شغّل التطبيق:
-
-```bash
-python app.py
-```
-
-8. افتح التطبيق من المتصفح:
+ثم افتح:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-## متغيرات البيئة
+سكريبت الإعداد ينشئ Virtual Environment، يثبت المتطلبات ومتصفح Chromium الخاص بـPlaywright، ثم يولد أسرارًا محلية.
 
-يستخدم المشروع متغيرات البيئة بدل كتابة الأسرار داخل الكود.
+## التشغيل باستخدام Docker — وضع محلي
 
-| المتغير | إجباري | الوظيفة |
-|---|---:|---|
-| `FLASK_SECRET_KEY` | نعم | مفتاح حماية جلسات Flask |
-| `JWT_SECRET_KEY` | نعم | مفتاح توقيع JWT |
-| `FLASK_DEBUG` | لا | اجعله `true` في التطوير فقط |
-| `OPENAI_API_KEY` | اختياري | مطلوب فقط لتشغيل AI Analysis |
-| `EMAIL_SENDER` | اختياري | بريد الإرسال في حالة استخدام البريد |
-| `EMAIL_APP_PASSWORD` | اختياري | App Password للبريد |
-| `AUTH_RATE_LIMIT_WINDOW` | لا | مدة نافذة منع المحاولات المتكررة بالثواني |
-| `AUTH_RATE_LIMIT_MAX` | لا | عدد المحاولات المسموح بها داخل النافذة |
-
-مهم: لا ترفع ملف `.env` الحقيقي إلى GitHub.
-
-## حساب الديمو المقترح
-
-يمكن إنشاء حساب تجريبي من صفحة Register قبل المناقشة:
-
-```text
-Email: demo@cyberscan.local
-Password: Demo12345
+```bash
+cp .env.example .env
+python scripts/generate_secrets.py
+docker compose up --build
 ```
 
-## مسار الديمو المقترح
+## التشغيل الموزع باستخدام Redis
 
-1. افتح الصفحة الرئيسية واشرح فكرة المشروع.
-2. سجل الدخول بحساب الديمو.
-3. افتح Dashboard.
-4. اضغط `New Scan`.
-5. أدخل رابط هدف مصرح بفحصه.
-6. اختر عددًا قليلًا من وحدات الفحص حتى يكون العرض سريعًا.
-7. ابدأ الفحص.
-8. اعرض الإشعارات والسجل المباشر أثناء الفحص.
-9. اعرض النتائج داخل Dashboard.
-10. افتح صفحة History لإثبات حفظ الفحص في قاعدة البيانات.
-11. إذا كان `OPENAI_API_KEY` مضبوطًا، اعرض AI Analysis للنتائج.
+هذا الوضع مناسب عند فصل الواجهة عن Workers:
 
-## وحدات مقترحة لديمو سريع
-
-يفضل البدء بوحدات لا تحتاج مدخلات إضافية:
-
-- Info Scan
-- Clickjacking Scanner
-- CORS Scanner
-- CSRF Scan
-- Dir Scan
-
-بعض الوحدات تحتاج قيمًا إضافية مثل parameter name أو login URL أو upload endpoint، لذلك قد تعرض رسالة بأن بعض البيانات غير متوفرة.
-
-## هدف اختبار مقترح للديمو
-
-الأفضل في المناقشة استخدام هدف محلي أو بيئة اختبار تملكها بالكامل. إذا كنت تحتاج هدفًا خارجيًا للتجربة قبل المناقشة، يمكن استخدام موقع تدريبي مخصص للاختبار مثل:
-
-```text
-http://testphp.vulnweb.com
+```bash
+cp .env.example .env
+python scripts/generate_secrets.py
+docker compose -f docker-compose.redis.yml up --build
 ```
 
-استخدمه فقط أثناء التدريب أو العرض إذا كان الاتصال بالإنترنت متاحًا، وابدأ بعدد قليل من وحدات الفحص حتى يبقى الديمو سريعًا.
+الخصائص:
 
-## خطة بديلة إذا فشل الفحص المباشر
+- مهام الطابور مشفرة باستخدام Fernet.
+- العامل يستخدم Processing Queue وHeartbeat.
+- مهمة العامل المتوقف تعاد تلقائيًا إلى الطابور بعد انتهاء Heartbeat.
+- الإلغاء موزع عبر Redis.
+- Socket.IO يمكنه استخدام Redis message queue.
 
-إذا تعطل الإنترنت أو تأخر الفحص أثناء المناقشة:
+القيم الأساسية:
 
-1. افتح صفحة History.
-2. اعرض فحصًا محفوظًا مسبقًا.
-3. اشرح أن النتائج محفوظة في قاعدة SQLite لكل مستخدم.
-4. اعرض Dashboard على البيانات المحفوظة.
-5. إذا كان AI Analysis غير متاح، وضح أنه يعتمد على `OPENAI_API_KEY` وأكمل شرح النتائج الأساسية.
-
-## Screenshots
-
-أضف لقطات شاشة قبل التسليم النهائي:
-
-- الصفحة الرئيسية.
-- صفحة تسجيل الدخول.
-- صفحة إنشاء الحساب.
-- Dashboard قبل الفحص.
-- نافذة New Scan.
-- الفحص أثناء التشغيل.
-- نتائج الفحص.
-- صفحة History.
-- نتيجة AI Analysis.
-
-مكان مقترح للصور:
-
-```text
-static/screenshots/
+```env
+SCAN_QUEUE_BACKEND=redis
+REDIS_URL=redis://redis:6379/0
+SOCKETIO_MESSAGE_QUEUE=redis://redis:6379/1
+QUEUE_ENCRYPTION_KEY=<generated-fernet-key>
 ```
 
-## القيود الحالية
+لا تشارك `QUEUE_ENCRYPTION_KEY` ولا تغيره بينما توجد مهام مشفرة معلقة.
 
-- بعض وحدات الفحص تعتمد على قواعد بسيطة، لذلك قد تظهر نتائج false positives أو false negatives.
-- بعض الفحوصات تحتاج مدخلات إضافية لا تعرضها الواجهة حاليًا بشكل ديناميكي.
-- قاعدة SQLite مناسبة للديمو، لكن الإنتاج يحتاج قاعدة أقوى مثل PostgreSQL.
-- الحماية من تكرار محاولات تسجيل الدخول بسيطة وموجودة داخل الذاكرة.
-- الفحص قد يستغرق وقتًا حسب الهدف وعدد الوحدات المختارة.
-- استخدام الأداة يجب أن يكون فقط على أهداف مصرح باختبارها.
+## إعداد إنتاج مقترح
 
-## التطوير المستقبلي
+```env
+SESSION_COOKIE_SECURE=true
+ENABLE_HSTS=true
+ALLOW_PRIVATE_TARGETS=false
+ALLOW_INSECURE_TLS=false
+ALLOW_UNSAFE_WERKZEUG=false
+REQUIRE_TARGET_SCOPE=true
+SCAN_ALLOWED_HOSTS=example.com,*.staging.example.com
+SOCKET_ALLOWED_ORIGINS=https://scanner.example.com
+```
 
-- إضافة حقول ديناميكية لكل Scanner يحتاج مدخلات إضافية.
-- إنشاء صفحة تفاصيل لكل فحص.
-- تخزين كل Finding في جدول منفصل بدل JSON فقط.
-- إضافة صلاحيات Roles مثل Admin وUser.
-- استخدام Rate Limiting احترافي مثل Redis أو Flask-Limiter.
-- تشغيل الفحوصات الطويلة عبر Queue.
-- تحسين دقة وحدات الفحص وتقليل النتائج الخاطئة.
-- إنشاء تقارير PDF من الباكند لكل فحص.
-- إضافة اختبارات آلية للـ routes والـ authentication والـ scanners.
-- إضافة Docker لتسهيل التشغيل والنشر.
+ضع المنصة خلف HTTPS Reverse Proxy. استخدم PostgreSQL وخدمة OAST منفصلة عند الأحمال أو الفرق الكبيرة؛ SQLite مناسبة للعرض والفريق الصغير.
 
-## ملاحظات أمنية
+## مثال Modern Scan
 
-- احتفظ بملف `.env` خارج GitHub.
-- استخدم قيم طويلة وعشوائية لـ `FLASK_SECRET_KEY` و`JWT_SECRET_KEY`.
-- اجعل `FLASK_DEBUG=false` قبل العرض أو التسليم.
-- غيّر أي API Key أو Email App Password تم مشاركته أو رفعه سابقًا.
-- لا تفحص إلا الأنظمة المصرح لك بفحصها.
+```json
+{
+  "url": "https://app.example.com/",
+  "vulns": [
+    "modern_spa_scanner",
+    "openapi_scanner",
+    "graphql_scanner",
+    "websocket_scanner",
+    "authorization_matrix_scanner",
+    "oidc_scanner"
+  ],
+  "authorized": true,
+  "scan_mode": "modern",
+  "request_budget": 150,
+  "verify_tls": true,
+  "scanner_inputs": {
+    "modern_spa_scanner": {"max_pages": 8, "navigation_timeout_ms": 12000},
+    "openapi_scanner": {"document_url": "/openapi.json", "probe_limit": 20},
+    "graphql_scanner": {"endpoint": "/graphql"},
+    "authorization_matrix_scanner": {"endpoints": "/api/admin,/api/profile", "max_endpoints": 10},
+    "oidc_scanner": {"discovery_url": "/.well-known/openid-configuration"}
+  },
+  "auth_profiles": [
+    {
+      "name": "user-test",
+      "expected_access": "user",
+      "headers": {"Authorization": "Bearer authorized-low-role-token"}
+    },
+    {
+      "name": "admin-test",
+      "expected_access": "admin",
+      "headers": {"Authorization": "Bearer authorized-admin-test-token"}
+    }
+  ],
+  "browser_storage_state": {"cookies": [], "origins": []}
+}
+```
 
-## نقاط قوية للعرض في المناقشة
+استخدم حسابات اختبار فقط، ولا تستخدم حسابًا شخصيًا أو حساب إنتاج عالي الصلاحيات.
 
-- بنية Modular لوحدات الفحص.
-- تشغيل فحص حقيقي من Dashboard.
-- حفظ History لكل مستخدم.
-- تشفير كلمات المرور.
-- نقل الأسرار إلى Environment Variables.
-- إشعارات مباشرة أثناء الفحص.
-- قابلية التطوير بإضافة Scanners جديدة.
+## API والتصدير
+
+- `POST /scan-live`
+- `GET /scan-status/<id>`
+- `POST /scan/<id>/cancel`
+- `GET /scan/<id>/report`
+- `GET /scan/<id>/export-json`
+- `GET /scan/<id>/export-sarif`
+- `GET /scan/<id>/export-artifacts`
+- `GET /scan/<id>/export-har`
+- `GET /api/audit`
+
+## الاختبارات
+
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
+```
+
+النتيجة المسجلة للإصدار:
+
+```text
+54 passed
+```
+
+تغطي الاختبارات:
+
+- الوحدات التقليدية بحالات إيجابية وسلبية.
+- Chromium حقيقي وSPA وFetch/XHR.
+- OpenAPI 3.1 و3.2 وSafe probes.
+- GraphQL schema inventory.
+- WebSocket server حقيقي.
+- gRPC Reflection server حقيقي.
+- OIDC secure/risky metadata.
+- Role separation الإيجابية والسلبية.
+- Redis queue encryption وFIFO وCancellation واستعادة عامل متوقف.
+- End-to-End من API إلى DB والتقارير مع التأكد من عدم تسريب الأسرار.
+- Python compile وJavaScript syntax وفحص الحزمة.
+
+## حدود صريحة
+
+- Business Logic وRace Conditions وسلاسل الصلاحيات المعقدة تحتاج مختبرًا يدويًا.
+- DOM XSS الكامل يحتاج Taint Tracking أو تحليل يدوي أعمق.
+- WebSocket وgRPC في الوضع الافتراضي Inventory فقط حتى لا يغيّرا بيانات التطبيق.
+- OIDC scanner لا يجرب تسجيل دخول أو اختطاف Redirect URI تلقائيًا.
+- نجاح 54/54 لا يعني ضمان اكتشاف كل ثغرة في كل تطبيق.
+
+راجع `SECURITY.md` و`TEST_REPORT_AR.md` و`docs/ARCHITECTURE_AR.md` و`docs/SCANNER_MATRIX_AR.md`.
