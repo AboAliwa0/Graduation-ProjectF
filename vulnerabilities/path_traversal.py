@@ -17,7 +17,6 @@ inputs = [
 
 OS_PROBES = [
     ("../../../../etc/passwd", re.compile(r"root:[x*]:0:0:")),
-    ("..%2f..%2f..%2f..%2fetc%2fpasswd", re.compile(r"root:[x*]:0:0:")),
     (r"..\..\..\..\Windows\win.ini", re.compile(r"\[fonts\]|\[extensions\]", re.I)),
 ]
 

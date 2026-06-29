@@ -109,7 +109,7 @@ def lab_server():
 
     @app.route("/safe/textarea")
     def safe_textarea_context():
-        return Response(f"<textarea>{request.args.get('q', '')}</textarea>", mimetype="text/html")
+        return Response(f"<textarea>{escape(request.args.get('q', ''))}</textarea>", mimetype="text/html")
 
     @app.route("/vuln/sqli")
     def vuln_sqli():

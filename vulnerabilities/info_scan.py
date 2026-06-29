@@ -1,4 +1,5 @@
 from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
+import hashlib
 import re
 
 from vulnerabilities.common import body_text, error_result, highest_severity, make_result, safe_request
@@ -20,17 +21,38 @@ PATTERNS = [
     ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "Critical"),
     ("debug_mode", re.compile(r"Werkzeug Debugger|DEBUG\s*=\s*True|Whoops! There was an error", re.I), "High"),
 ]
+SECRET_PATTERN_TYPES = {"private_key", "aws_access_key"}
+
+
+def _match_evidence(name, severity, match, text):
+    value = match.group(0)
+    evidence = {
+        "type": name,
+        "severity": severity,
+        "line": text.count("\n", 0, match.start()) + 1,
+        "start_offset": match.start(),
+    }
+    if name in SECRET_PATTERN_TYPES:
+        evidence.update({
+            "value_masked": f"{value[:4]}...{value[-4:]}" if len(value) > 8 else "[REDACTED]",
+            "value_sha256": hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest(),
+        })
+    else:
+        evidence["sample"] = value[:120]
+    return evidence
 
 
 def scan(url):
+    requests_made = 0
     try:
+        requests_made = 1
         response = safe_request("GET", url)
         text = body_text(response)
         observations = []
         for name, pattern, severity in PATTERNS:
             match = pattern.search(text)
             if match:
-                observations.append({"type": name, "severity": severity, "sample": match.group(0)[:120]})
+                observations.append(_match_evidence(name, severity, match, text))
 
         verbose_headers = {}
         for header in ("Server", "X-Powered-By", "X-AspNet-Version", "X-Runtime"):
@@ -65,4 +87,4 @@ def scan(url):
     except (ScanCancelled, RequestBudgetExceeded):
         raise
     except Exception as exc:
-        return error_result(f"Information-disclosure check failed: {exc}", endpoint=url)
+        return error_result(f"Information-disclosure check failed: {exc}", endpoint=url, requests_made=requests_made)

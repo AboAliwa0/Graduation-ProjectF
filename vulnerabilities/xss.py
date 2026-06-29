@@ -130,16 +130,20 @@ def build_payloads(token):
     ]
 
 
-def detect_executable_context(body, content_type, token):
-    body = body or ""
-    decoded_body = html_lib.unescape(body)
+def detect_executable_context(body, content_type, token, reflected_value=None):
+    raw_body = body or ""
+    decoded_body = html_lib.unescape(raw_body)
+    reflected_value = token if reflected_value is None else reflected_value
 
     js_marker = "window.__cyberscan_probe"
 
     detection = {
-        "token_reflected_raw": token in body,
+        "reflected_raw": reflected_value in raw_body,
+        "reflected_decoded": reflected_value in decoded_body,
+        "executable_context_confirmed": False,
+        "token_reflected_raw": token in raw_body,
         "token_reflected_decoded": token in decoded_body,
-        "js_marker_reflected_raw": js_marker in body,
+        "js_marker_reflected_raw": js_marker in raw_body,
         "js_marker_reflected_decoded": js_marker in decoded_body,
         "executable_context": None,
         "tag": None,
@@ -147,10 +151,12 @@ def detect_executable_context(body, content_type, token):
         "inert_html_context": False,
     }
 
-    if not looks_like_html(content_type, body):
+    if not looks_like_html(content_type, raw_body):
         return False, detection
 
-    soup = BeautifulSoup(body, "html.parser")
+    # Decoded text is reflection evidence only. Executable evidence must come
+    # from tags and attributes parsed directly from the raw HTTP response.
+    soup = BeautifulSoup(raw_body, "html.parser")
 
     # 1) <script>window.__cyberscan_probe='TOKEN'</script>
     for script in soup.find_all("script"):
@@ -165,6 +171,7 @@ def detect_executable_context(body, content_type, token):
                     "tag": "script",
                     "attribute": None,
                     "inert_html_context": inert,
+                    "executable_context_confirmed": not inert,
                 }
             )
 
@@ -191,6 +198,7 @@ def detect_executable_context(body, content_type, token):
                         "tag": tag.name,
                         "attribute": attr_name,
                         "inert_html_context": False,
+                        "executable_context_confirmed": True,
                     }
                 )
                 return True, detection
@@ -205,11 +213,11 @@ def detect_executable_context(body, content_type, token):
         for attr_name, attr_value in tag.attrs.items():
             attr_name_lower = attr_name.lower()
             attr_value_text = attr_to_text(attr_value).strip()
-            decoded_attr = html_lib.unescape(attr_value_text).lower()
+            parsed_attr = attr_value_text.lower()
 
             if (
                 attr_name_lower in url_attrs
-                and decoded_attr.startswith("javascript:")
+                and parsed_attr.startswith("javascript:")
                 and js_marker in attr_value_text
                 and token in attr_value_text
             ):
@@ -219,6 +227,7 @@ def detect_executable_context(body, content_type, token):
                         "tag": tag.name,
                         "attribute": attr_name,
                         "inert_html_context": False,
+                        "executable_context_confirmed": True,
                     }
                 )
                 return True, detection
@@ -383,6 +392,7 @@ def scan(url, param=""):
                 baseline_body,
                 baseline_content_type,
                 token,
+                token,
             )
 
             for payload_info in payloads:
@@ -402,6 +412,7 @@ def scan(url, param=""):
                     body,
                     content_type,
                     token,
+                    payload,
                 )
 
                 attempt = {
@@ -412,6 +423,9 @@ def scan(url, param=""):
                     "context_tested": payload_info["context"],
                     "status_code": response.status_code,
                     "content_type": content_type,
+                    "reflected_raw": detection["reflected_raw"],
+                    "reflected_decoded": detection["reflected_decoded"],
+                    "executable_context_confirmed": confirmed,
                     "token_reflected_raw": token in body,
                     "token_reflected_decoded": token in decoded_body,
                     "payload_reflected_raw": payload in body,

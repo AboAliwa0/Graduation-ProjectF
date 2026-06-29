@@ -35,7 +35,13 @@ def scan(url, param="", callback_base_url=""):
     try:
         response = safe_request("GET", append_query_param(url, param, callback))
         hits = wait_for_hit(token, timeout=3.0)
-        evidence = {"callback": callback, "target_status": response.status_code, "callback_hits": hits}
+        evidence = {
+            "callback": callback,
+            "target_status": response.status_code,
+            "callback_hits": hits,
+            "callback_observed": bool(hits),
+            "verification_window_seconds": 3.0,
+        }
         if hits:
             return make_result(
                 True,
@@ -50,12 +56,13 @@ def scan(url, param="", callback_base_url=""):
                 cvss=9.1,
                 requests_made=1,
             )
-        return make_result(
-            False,
-            "No out-of-band callback was observed during the verification window.",
+        evidence["external_setup_may_be_required"] = True
+        return inconclusive(
+            "No out-of-band callback was observed during the short verification window; SSRF safety was not confirmed.",
             severity="Info",
-            confidence="Medium",
+            confidence="Low",
             evidence=evidence,
+            recommendation="Verify that the callback URL is externally reachable, then repeat or monitor for delayed callbacks.",
             endpoint=response.url,
             parameter=param,
             cwe="CWE-918",

@@ -96,15 +96,45 @@ def scan(url, param=""):
                     })
                     break
 
-        if observations:
-            confidence = "High" if any(item["type"] == "database_error" for item in observations) else "Medium"
+        database_errors = [item for item in observations if item["type"] == "database_error"]
+        boolean_differentials = [item for item in observations if item["type"] == "boolean_differential"]
+
+        if database_errors:
             return make_result(
                 True,
-                "SQL injection indicators were confirmed by a database error or a stable boolean differential.",
+                "SQL injection was confirmed by a new database-specific error that was absent from stable baseline responses.",
                 severity=highest_severity(item["severity"] for item in observations),
-                confidence=confidence,
-                evidence={"baseline_stability": round(baseline_stability, 3), "observations": observations},
+                confidence="High",
+                status="confirmed",
+                evidence={
+                    "classification": "confirmed",
+                    "classification_reason": "A database-specific error appeared only after an injection probe.",
+                    "baseline_stability": round(baseline_stability, 3),
+                    "database_errors": database_errors,
+                    "boolean_differentials": boolean_differentials,
+                },
                 recommendation="Use parameterized queries, avoid SQL string concatenation, and apply server-side type validation.",
+                endpoint=url,
+                parameter=param,
+                cwe="CWE-89",
+                cvss=9.8,
+                requests_made=requests_made,
+            )
+
+        if boolean_differentials:
+            return make_result(
+                True,
+                "A stable boolean response differential was observed. This is a potential SQL injection indicator requiring manual confirmation.",
+                severity="High",
+                confidence="Medium",
+                status="potential",
+                evidence={
+                    "classification": "potential",
+                    "classification_reason": "True and false probes produced a repeatable differential, but no database-specific error was observed.",
+                    "baseline_stability": round(baseline_stability, 3),
+                    "boolean_differentials": boolean_differentials,
+                },
+                recommendation="Manually validate the differential, then use parameterized queries and server-side type validation.",
                 endpoint=url,
                 parameter=param,
                 cwe="CWE-89",
