@@ -74,7 +74,13 @@
   function resultIsFinding(item) {
     if (!item || typeof item !== 'object') return false;
     const status = String(item.status || '').toLowerCase();
-    return Boolean(item.vulnerable) || ['confirmed', 'potential', 'error'].includes(status);
+    if (status) return ['confirmed', 'potential'].includes(status);
+    return Boolean(item.vulnerable);
+  }
+
+  function resultIsOperationalIssue(item) {
+    if (!item || typeof item !== 'object') return false;
+    return ['error', 'inconclusive'].includes(String(item.status || '').toLowerCase());
   }
 
   function normalizeFinding(item, scan) {
@@ -98,6 +104,11 @@
   function findingsForScan(scan) {
     const results = Array.isArray(scan?.results) ? scan.results : [];
     return results.filter(resultIsFinding).map(item => normalizeFinding(item, scan));
+  }
+
+  function operationalIssuesForScan(scan) {
+    const results = Array.isArray(scan?.results) ? scan.results : [];
+    return results.filter(resultIsOperationalIssue).map(item => normalizeFinding(item, scan));
   }
 
   function severityDistribution(findings) {
@@ -189,6 +200,7 @@
     renderSelectedScan();
     renderSeverity();
     renderFindings();
+    renderOperationalIssues();
     renderScanList();
     renderModules();
     renderScopes();
@@ -324,6 +336,27 @@
         <td><span class="status-pill ${statusClass(finding.status)}">${escapeHtml(translateStatus(finding.status))}</span><br><span class="muted">Confidence: ${escapeHtml(finding.confidence)}</span></td>
         <td><div class="finding-desc">${escapeHtml(finding.description).slice(0, 280)}${finding.description.length > 280 ? '…' : ''}</div></td>
         <td><button class="mini-btn" type="button" data-finding="${index}">View</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderOperationalIssues() {
+    const panel = $('#scannerIssuesPanel');
+    const body = $('#scannerIssuesBody');
+    if (!panel || !body) return;
+    const scan = selectedScan();
+    const issues = operationalIssuesForScan(scan);
+    panel.hidden = !issues.length;
+    if (!issues.length) {
+      body.innerHTML = '';
+      return;
+    }
+    body.innerHTML = issues.map(issue => `
+      <tr>
+        <td><strong>${escapeHtml(issue.scanner)}</strong></td>
+        <td><span class="status-pill ${statusClass(issue.status)}">${escapeHtml(translateStatus(issue.status))}</span></td>
+        <td><div class="finding-desc">${escapeHtml(issue.description)}</div></td>
+        <td><span class="muted">${escapeHtml(issue.endpoint || scan?.target || 'N/A')}</span></td>
       </tr>
     `).join('');
   }

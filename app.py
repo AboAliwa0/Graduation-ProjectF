@@ -372,7 +372,14 @@ def normalize_scanner_result(scanner_name: str, raw_result) -> dict:
 
 
 def is_finding(item: dict) -> bool:
-    return bool(item.get("vulnerable")) or item.get("status") in {"potential", "error"}
+    status = str(item.get("status") or "").strip().lower()
+    if status:
+        return status in {"confirmed", "potential"}
+    return bool(item.get("vulnerable"))
+
+
+def result_has_status(item: dict, statuses: set[str]) -> bool:
+    return str(item.get("status") or "").strip().lower() in statuses
 
 
 def normalize_finding(item: dict) -> dict:
@@ -392,7 +399,7 @@ def normalize_finding(item: dict) -> dict:
         "owasp": owasp_category_for(name),
         "asvs": asvs_category_for(name),
         "confidence": str(item.get("confidence") or "Low"),
-        "status": str(item.get("status") or "unknown"),
+        "status": str(item.get("status") or ("confirmed" if item.get("vulnerable") else "unknown")),
         "endpoint": str(item.get("endpoint") or ""),
         "parameter": str(item.get("parameter") or ""),
         "cwe": str(item.get("cwe") or ""),
@@ -405,6 +412,17 @@ def normalize_scan_results(raw_results) -> list[dict]:
     if isinstance(parsed, dict):
         parsed = [parsed]
     return [normalize_finding(item) for item in parsed if isinstance(item, dict) and is_finding(item)]
+
+
+def normalize_scan_checks(raw_results, statuses: set[str]) -> list[dict]:
+    parsed = safe_json_loads(raw_results)
+    if isinstance(parsed, dict):
+        parsed = [parsed]
+    return [
+        normalize_finding(item)
+        for item in parsed
+        if isinstance(item, dict) and result_has_status(item, statuses)
+    ]
 
 
 def build_sarif(scan_row) -> dict:
@@ -737,24 +755,69 @@ def build_scan_report_pdf(scan: dict) -> BytesIO:
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="SmallMuted", parent=styles["BodyText"], fontSize=8, textColor=colors.HexColor("#64748B"), leading=11))
-    elements = [pdf_paragraph("CyberScan Professional Security Report", styles["Title"]), pdf_paragraph("Authorized testing only. Findings include confidence and evidence; potential results require manual validation.", styles["SmallMuted"]), Spacer(1, 14)]
-    summary = Table(
+    elements = [
+        pdf_paragraph("CyberScan Professional Security Report", styles["Title"]),
+        pdf_paragraph("Authorized testing only. Potential findings require manual validation.", styles["SmallMuted"]),
+        Spacer(1, 14),
+        pdf_paragraph("Executive Summary", styles["Heading1"]),
+        pdf_paragraph(
+            f'The scan identified {scan["findings_count"]} confirmed or potential security finding(s). '
+            f'The highest severity was {scan["highest_severity"]}, with an aggregate risk score of {scan.get("risk_score", 0)}/100.',
+            styles["BodyText"],
+        ),
+        pdf_paragraph(
+            "Aggregate risk score based on severity, confidence, and finding status. It is different from CVSS.",
+            styles["SmallMuted"],
+        ),
+        Spacer(1, 12),
+        pdf_paragraph("Target Information", styles["Heading1"]),
+    ]
+    target_table = Table(
         [
             ["Target", scan["target"]],
-            ["Date", scan["created_at"]],
+            ["User", scan.get("email", "N/A")],
+            ["Created", scan["created_at"]],
+            ["Completed", scan.get("completed_at") or "N/A"],
             ["Status", scan["status"]],
-            ["Findings", scan["findings_count"]],
-            ["Highest severity", scan["highest_severity"]],
-            ["Risk score", f'{scan.get("risk_score", 0)}/100'],
+        ],
+        colWidths=[120, 360],
+    )
+    target_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E2E8F0")), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("PADDING", (0, 0), (-1, -1), 6)]))
+    selected_scanners = ", ".join(scan.get("selected_scanners") or []) or "Not recorded"
+    config_table = Table(
+        [
+            ["Scan mode", scan.get("scan_mode", "standard")],
+            ["Selected scanners", selected_scanners],
             ["HTTP requests", f'{scan.get("request_count", 0)} / {scan.get("request_budget", "N/A")}'],
             ["Tool version", scan.get("tool_version", "5.0.0")],
         ],
         colWidths=[120, 360],
     )
-    summary.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E2E8F0")), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]))
-    elements += [summary, Spacer(1, 16)]
+    config_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E2E8F0")), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("PADDING", (0, 0), (-1, -1), 6)]))
+    distribution = scan.get("severity_distribution") or {}
+    findings_summary = Table(
+        [
+            ["Security findings", scan["findings_count"]],
+            ["Highest severity", scan["highest_severity"]],
+            ["Risk score", f'{scan.get("risk_score", 0)}/100'],
+            ["Severity distribution", ", ".join(f"{name}: {distribution.get(name, 0)}" for name in SEVERITY_ORDER)],
+        ],
+        colWidths=[120, 360],
+    )
+    findings_summary.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E2E8F0")), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("PADDING", (0, 0), (-1, -1), 6)]))
+    elements += [
+        target_table,
+        Spacer(1, 12),
+        pdf_paragraph("Scan Configuration", styles["Heading1"]),
+        config_table,
+        Spacer(1, 12),
+        pdf_paragraph("Findings Summary", styles["Heading1"]),
+        findings_summary,
+        Spacer(1, 12),
+        pdf_paragraph("Detailed Findings", styles["Heading1"]),
+    ]
     if not scan["groups"]:
-        elements.append(pdf_paragraph("No confirmed, potential, or scanner-error findings were saved.", styles["Heading2"]))
+        elements.append(pdf_paragraph("No confirmed or potential security findings were saved.", styles["BodyText"]))
     for group in scan["groups"]:
         elements.append(pdf_paragraph(group["scanner"], styles["Heading2"]))
         for finding in group["findings"]:
@@ -771,6 +834,39 @@ def build_scan_report_pdf(scan: dict) -> BytesIO:
             table = Table([[pdf_paragraph(a, styles["BodyText"]), pdf_paragraph(b, styles["BodyText"])] for a, b in data], colWidths=[110, 370])
             table.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F1F5F9")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
             elements += [table, Spacer(1, 10)]
+    scanner_errors = scan.get("scanner_errors") or []
+    inconclusive_checks = scan.get("inconclusive_checks") or []
+    if scanner_errors or inconclusive_checks:
+        elements += [Spacer(1, 8), pdf_paragraph("Scanner Errors / Inconclusive Checks", styles["Heading1"])]
+        for check in scanner_errors + inconclusive_checks:
+            check_table = Table(
+                [
+                    ["Scanner / status", f'{check["scanner"]} / {check["status"]}'],
+                    ["Description", check["description"]],
+                    ["Endpoint", check["endpoint"] or scan["target"]],
+                    ["Evidence", check["evidence"]],
+                ],
+                colWidths=[120, 360],
+            )
+            check_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F8FAFC")), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("PADDING", (0, 0), (-1, -1), 5)]))
+            elements += [check_table, Spacer(1, 8)]
+    elements += [
+        pdf_paragraph("Limitations", styles["Heading1"]),
+        pdf_paragraph("Automated scanning covers only the selected modules and supplied inputs. Potential and inconclusive results require manual validation. A clean report does not prove that the target is free of vulnerabilities.", styles["BodyText"]),
+        Spacer(1, 8),
+        pdf_paragraph("Recommendations", styles["Heading1"]),
+    ]
+    recommendations = list(dict.fromkeys(
+        finding["recommendation"]
+        for group in scan["groups"]
+        for finding in group["findings"]
+        if finding.get("recommendation")
+    ))
+    if recommendations:
+        for index, recommendation in enumerate(recommendations, start=1):
+            elements.append(pdf_paragraph(f"{index}. {recommendation}", styles["BodyText"]))
+    else:
+        elements.append(pdf_paragraph("Continue secure configuration reviews, dependency maintenance, monitoring, and authorized manual testing.", styles["BodyText"]))
     doc.build(elements)
     buffer.seek(0)
     return buffer
@@ -875,6 +971,8 @@ def scan_details(scan_id: int):
     if not row:
         return "Scan not found", 404
     findings = normalize_scan_results(row["result"])
+    scanner_errors = normalize_scan_checks(row["result"], {"error"})
+    inconclusive_checks = normalize_scan_checks(row["result"], {"inconclusive"})
     artifacts = safe_json_loads(row["artifacts"]) if "artifacts" in row.keys() else {}
     scan = {
         "id": row["id"], "target": row["target"], "status": row["status"],
@@ -882,6 +980,7 @@ def scan_details(scan_id: int):
         "completed_at": row["completed_at"], "email": row["email"],
         "findings_count": len(findings), "highest_severity": highest_severity(findings),
         "groups": group_findings_by_scanner(findings), "risk_score": row["risk_score"],
+        "scanner_errors": scanner_errors, "inconclusive_checks": inconclusive_checks,
         "security_score": max(0, round(100 - float(row["risk_score"] or 0), 1)),
         "request_count": row["request_count"], "request_budget": row["request_budget"],
         "progress": row["progress"], "current_scanner": row["current_scanner"],
@@ -899,7 +998,18 @@ def scan_report(scan_id: int):
     if not row:
         return "Scan not found", 404
     findings = normalize_scan_results(row["result"])
-    scan = {"id": row["id"], "target": row["target"], "status": row["status"], "created_at": row["created_at"], "email": row["email"], "findings_count": len(findings), "highest_severity": highest_severity(findings), "groups": group_findings_by_scanner(findings), "risk_score": row["risk_score"], "request_count": row["request_count"], "request_budget": row["request_budget"], "tool_version": row["tool_version"]}
+    scanner_errors = normalize_scan_checks(row["result"], {"error"})
+    inconclusive_checks = normalize_scan_checks(row["result"], {"inconclusive"})
+    scan = {
+        "id": row["id"], "target": row["target"], "status": row["status"],
+        "created_at": row["created_at"], "completed_at": row["completed_at"], "email": row["email"],
+        "findings_count": len(findings), "highest_severity": highest_severity(findings),
+        "severity_distribution": severity_distribution(findings), "groups": group_findings_by_scanner(findings),
+        "scanner_errors": scanner_errors, "inconclusive_checks": inconclusive_checks,
+        "risk_score": row["risk_score"], "request_count": row["request_count"],
+        "request_budget": row["request_budget"], "tool_version": row["tool_version"],
+        "scan_mode": row["scan_mode"], "selected_scanners": safe_json_loads(row["selected_scanners"]),
+    }
     audit("scan.export_pdf", user_id=int(session["user_id"]), target_type="scan", target_id=scan_id, ip_address=client_ip())
     return send_file(build_scan_report_pdf(scan), mimetype="application/pdf", as_attachment=True, download_name=f"cyberscan-{scan_id}-report.pdf")
 

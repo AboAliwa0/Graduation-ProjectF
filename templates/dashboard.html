@@ -107,6 +107,7 @@
               </div>
             </div>
             <div class="scan-summary" id="scanSummary"></div>
+            <p class="muted" style="margin-top:10px">Aggregate risk score based on severity, confidence, and finding status. It is different from CVSS.</p>
           </article>
 
           <article class="panel">
@@ -143,6 +144,21 @@
                   </tr>
                 </thead>
                 <tbody id="findingsBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel" id="scannerIssuesPanel" hidden>
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Operational Results</span>
+                <h3>Scanner Errors / Inconclusive Checks</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="findings-table">
+                <thead><tr><th>Module</th><th>Status</th><th>Description</th><th>Endpoint</th></tr></thead>
+                <tbody id="scannerIssuesBody"></tbody>
               </table>
             </div>
           </article>

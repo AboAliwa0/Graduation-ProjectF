@@ -287,6 +287,7 @@
         <div class="stat"><div class="label">HTTP Requests</div><div class="value">{{ scan.request_count }} / {{ scan.request_budget }}</div></div>
         <div class="stat"><div class="label">Tool Version</div><div class="value">{{ scan.tool_version }}</div></div>
     </div>
+    <div class="card" style="padding:14px 18px;color:var(--muted)">Aggregate risk score based on severity, confidence, and finding status. It is different from CVSS.</div>
 
     <div class="card">
         <div class="scanner-title">Modern Application Inventory</div>
@@ -354,6 +355,27 @@
         {% endfor %}
     {% else %}
         <div class="empty-state">No findings were saved for this scan.</div>
+    {% endif %}
+
+    {% if scan.scanner_errors or scan.inconclusive_checks %}
+        <div class="card">
+            <div class="scanner-title">Scanner Errors / Inconclusive Checks</div>
+            {% for check in scan.scanner_errors + scan.inconclusive_checks %}
+                <div class="finding">
+                    <div class="finding-head">
+                        <div>
+                            <div class="finding-title">{{ check.scanner }}</div>
+                            <div style="color:var(--muted);font-size:0.86rem;margin-top:4px">Status: {{ check.status|upper }}</div>
+                        </div>
+                    </div>
+                    <div class="meta-grid">
+                        <div class="meta-box"><div class="meta-label">Description</div><div class="meta-value">{{ check.description }}</div></div>
+                        <div class="meta-box"><div class="meta-label">Endpoint</div><div class="meta-value">{{ check.endpoint or scan.target }}</div></div>
+                        <div class="meta-box"><div class="meta-label">Evidence</div><div class="meta-value">{{ check.evidence }}</div></div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% endif %}
 </div>
 </body>

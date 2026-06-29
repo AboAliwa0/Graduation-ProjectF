@@ -8,7 +8,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
-reports/
+reports/*
+!reports/final_target_scan/
+reports/final_target_scan/*
+!reports/final_target_scan/.gitkeep
 exports/
 *.log
 .DS_Store
