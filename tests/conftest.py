@@ -22,7 +22,7 @@ def lab_server():
     app = Flask(__name__)
     uploaded = {}
     stored = {"raw": [], "safe": []}
-    counters = {"auth_safe": 0, "rate_safe": 0}
+    counters = {"auth_safe": 0, "auth_429": 0, "auth_retry": 0, "rate_safe": 0}
 
     @app.after_request
     def lab_headers(response):
@@ -196,6 +196,41 @@ def lab_server():
             response.headers["Retry-After"] = "60"
             return response
         return Response("Invalid credentials", status=401, mimetype="text/plain")
+
+    @app.route("/auth/no-protection", methods=["POST"])
+    def auth_no_protection():
+        return Response("Invalid credentials", status=401, mimetype="text/plain")
+
+    @app.route("/auth/http-429", methods=["POST"])
+    def auth_http_429():
+        counters["auth_429"] += 1
+        if counters["auth_429"] >= 3:
+            return Response("Invalid credentials: too many requests", status=429, mimetype="text/plain")
+        return Response("Invalid credentials", status=401, mimetype="text/plain")
+
+    @app.route("/auth/retry-after", methods=["POST"])
+    def auth_retry_after():
+        counters["auth_retry"] += 1
+        response = Response("Invalid credentials", status=401, mimetype="text/plain")
+        if counters["auth_retry"] >= 2:
+            response.headers["Retry-After"] = "60"
+        return response
+
+    @app.route("/auth/captcha", methods=["POST"])
+    def auth_captcha():
+        return Response("Invalid credentials. CAPTCHA required.", status=401, mimetype="text/plain")
+
+    @app.route("/auth/lockout", methods=["POST"])
+    def auth_lockout():
+        return Response("Invalid credentials. Account locked.", status=403, mimetype="text/plain")
+
+    @app.route("/auth/rate-marker", methods=["POST"])
+    def auth_rate_marker():
+        return Response("Invalid credentials. Slow down.", status=401, mimetype="text/plain")
+
+    @app.route("/auth/unreliable", methods=["POST"])
+    def auth_unreliable():
+        return Response("Unexpected login response", status=200, mimetype="text/plain")
 
     @app.route("/vuln/rate")
     def vuln_rate():

@@ -1,3 +1,8 @@
+import json
+
+import pytest
+
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
 from vulnerabilities import (
     auth_scanner,
     blind_xss,
@@ -121,6 +126,109 @@ def test_login_abuse_protection(lab_server):
     vulnerable = auth_scanner.scan(lab_server, login_url=lab_server + "/vuln/auth", test_username="security-test", failure_marker="Invalid credentials")
     assert vulnerable["vulnerable"] is True and vulnerable["status"] == "potential", vulnerable
     assert_not_vulnerable(auth_scanner.scan(lab_server, login_url=lab_server + "/safe/auth", test_username="security-test", failure_marker="Invalid credentials"))
+
+
+def test_login_abuse_missing_inputs_are_inconclusive_without_requests(monkeypatch, lab_server):
+    monkeypatch.setattr(auth_scanner, "safe_request", lambda *args, **kwargs: pytest.fail("No request expected"))
+    missing_url = auth_scanner.scan(lab_server, test_username="security-test", failure_marker="Invalid credentials")
+    missing_user = auth_scanner.scan(lab_server, login_url=lab_server + "/auth/no-protection", failure_marker="Invalid credentials")
+    missing_marker = auth_scanner.scan(lab_server, login_url=lab_server + "/auth/no-protection", test_username="security-test")
+    for result in (missing_url, missing_user, missing_marker):
+        assert result["status"] == "inconclusive"
+        assert result["requests_made"] == 0
+        assert result["evidence"]["attempt_count"] == 0
+
+
+def test_login_abuse_five_attempt_limit_potential_and_secret_free_evidence(lab_server):
+    username = "dedicated-instructor-account"
+    result = auth_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/auth/no-protection",
+        test_username=username,
+        failure_marker="Invalid credentials",
+    )
+    assert result["status"] == "potential" and result["confidence"] == "Low", result
+    assert result["requests_made"] == auth_scanner.MAX_ATTEMPTS == 5
+    assert result["evidence"]["attempt_count"] == 5
+    serialized = json.dumps(result["evidence"])
+    assert username not in serialized
+    assert "CyberScan-Wrong" not in serialized
+
+
+def test_login_abuse_stops_early_on_429_and_retry_after(lab_server):
+    common = {"test_username": "security-test", "failure_marker": "Invalid credentials"}
+    limited = auth_scanner.scan(lab_server, login_url=lab_server + "/auth/http-429", **common)
+    assert_not_vulnerable(limited)
+    assert limited["evidence"]["throttling_observed"] is True
+    assert limited["evidence"]["attempt_count"] == 3
+
+    retried = auth_scanner.scan(lab_server, login_url=lab_server + "/auth/retry-after", **common)
+    assert_not_vulnerable(retried)
+    assert retried["evidence"]["retry_after_observed"] is True
+    assert retried["evidence"]["attempt_count"] == 2
+
+
+@pytest.mark.parametrize(
+    ("path", "marker_name", "marker_value", "evidence_key"),
+    [
+        ("/auth/captcha", "captcha_marker", "CAPTCHA required", "captcha_observed"),
+        ("/auth/lockout", "lockout_marker", "Account locked", "lockout_observed"),
+        ("/auth/rate-marker", "rate_limit_marker", "Slow down", "rate_limit_marker_observed"),
+    ],
+)
+def test_login_abuse_recognizes_protection_markers(lab_server, path, marker_name, marker_value, evidence_key):
+    result = auth_scanner.scan(
+        lab_server,
+        login_url=lab_server + path,
+        test_username="security-test",
+        failure_marker="Invalid credentials",
+        **{marker_name: marker_value},
+    )
+    assert_not_vulnerable(result)
+    assert result["severity"] == "Info"
+    assert result["evidence"][evidence_key] is True
+    assert result["evidence"]["attempt_count"] == 1
+
+
+def test_login_abuse_invalid_failure_marker_is_inconclusive(lab_server):
+    result = auth_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/auth/unreliable",
+        test_username="security-test",
+        failure_marker="Invalid credentials",
+    )
+    assert result["status"] == "inconclusive" and result["vulnerable"] is False
+    assert result["evidence"]["failure_evidence_consistent"] is False
+
+
+@pytest.mark.parametrize("exception", [ScanCancelled("cancelled"), RequestBudgetExceeded("budget")])
+def test_login_abuse_propagates_runtime_stop_exceptions(monkeypatch, lab_server, exception):
+    def stop_request(*args, **kwargs):
+        raise exception
+
+    monkeypatch.setattr(auth_scanner, "safe_request", stop_request)
+    with pytest.raises(type(exception)):
+        auth_scanner.scan(
+            lab_server,
+            login_url=lab_server + "/auth/no-protection",
+            test_username="security-test",
+            failure_marker="Invalid credentials",
+        )
+
+
+def test_login_abuse_transport_error_counts_attempt(monkeypatch, lab_server):
+    def fail_request(*args, **kwargs):
+        raise OSError("transport failed")
+
+    monkeypatch.setattr(auth_scanner, "safe_request", fail_request)
+    result = auth_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/auth/no-protection",
+        test_username="security-test",
+        failure_marker="Invalid credentials",
+    )
+    assert result["status"] == "error"
+    assert result["requests_made"] == 1
 
 
 def test_generic_rate_limit_observation(lab_server):
