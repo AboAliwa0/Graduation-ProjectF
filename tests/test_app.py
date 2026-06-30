@@ -1,5 +1,6 @@
 import importlib
 import os
+import time
 
 
 def _load_app(tmp_path, monkeypatch):
@@ -127,19 +128,28 @@ def _register_and_login(app_module, email="pro@example.com"):
     return client, csrf, user_id
 
 
-def _wait_for_terminal_scan(client, scan_id, timeout_loops=80):
-    import time
-
-    active = {"queued", "running", "cancelling"}
+def _wait_for_terminal_scan(client, scan_id, timeout_seconds=10.0, poll_interval=0.05):
+    terminal_statuses = {"done", "failed", "cancelled", "budget_exhausted"}
+    deadline = time.monotonic() + timeout_seconds
     payload = None
-    for _ in range(timeout_loops):
+    while time.monotonic() < deadline:
         response = client.get(f"/scan-status/{scan_id}")
         assert response.status_code == 200
         payload = response.get_json()["scan"]
-        if payload["status"] not in active:
+        if payload.get("status") in terminal_statuses:
             return payload
-        time.sleep(0.05)
-    return payload
+        time.sleep(poll_interval)
+
+    payload = payload or {}
+    artifacts = payload.get("artifacts")
+    debug_info = {
+        "status": payload.get("status"),
+        "current_scanner": payload.get("current_scanner"),
+        "progress": payload.get("progress"),
+        "requests_made": payload.get("request_count", payload.get("requests_made")),
+        "artifact_keys": sorted(artifacts.keys()) if isinstance(artifacts, dict) else [],
+    }
+    raise AssertionError(f"Scan {scan_id} did not finish within {timeout_seconds}s: {debug_info}")
 
 
 def test_request_budget_is_hard_stop_and_credentials_are_not_persisted(tmp_path, monkeypatch, lab_server):
@@ -311,7 +321,7 @@ def test_end_to_end_modern_scan_artifacts_and_secret_redaction(tmp_path, monkeyp
     )
     assert started.status_code == 202, started.get_data(as_text=True)
     scan_id = started.get_json()["scan_id"]
-    payload = _wait_for_terminal_scan(client, scan_id, timeout_loops=160)
+    payload = _wait_for_terminal_scan(client, scan_id, timeout_seconds=60.0)
     assert payload["status"] == "done", payload
     assert {"browser", "openapi", "graphql", "authorization_matrix"}.issubset(payload["artifacts"])
     assert payload["artifacts"]["browser"]["pages_visited"]
