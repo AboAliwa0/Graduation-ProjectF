@@ -204,6 +204,14 @@ def lab_server():
         uploaded["safe-" + item.filename] = (item.read(), "text/plain")
         return jsonify({"accepted": True})
 
+    @app.route("/upload/cross-origin", methods=["POST"])
+    def cross_origin_upload():
+        item = request.files.get("file")
+        if not item:
+            return jsonify({"error": "missing"}), 400
+        item.read()
+        return jsonify({"url": f"https://unrelated.example/uploads/{item.filename}"})
+
     @app.route("/public/<path:name>")
     def public_file(name):
         data, content_type = uploaded.get(name, (b"missing", "text/plain"))
@@ -227,6 +235,13 @@ def lab_server():
             return jsonify({"error": "forbidden"}), 403
         return jsonify({"id": "1001", "account_owner": "private_marker", "balance": 1000})
 
+    @app.route("/potential/idor")
+    def potential_idor():
+        return jsonify({
+            "id": request.args.get("id"),
+            "summary": "read-only authorization comparison response " * 4,
+        })
+
     @app.route("/vuln/login", methods=["POST"])
     def vuln_login():
         if request.form.get("username") == "test-user" and request.form.get("password") == "Password1":
@@ -236,6 +251,14 @@ def lab_server():
     @app.route("/safe/login", methods=["POST"])
     def safe_login():
         return Response("Invalid credentials", status=401, mimetype="text/plain")
+
+    @app.route("/login/marker-401", methods=["POST"])
+    def login_marker_401():
+        return Response("Welcome text in a rejected response", status=401, mimetype="text/plain")
+
+    @app.route("/login/redirect", methods=["POST"])
+    def login_redirect():
+        return redirect("/dashboard?token=fixture-secret", code=302)
 
     @app.route("/vuln/auth", methods=["POST"])
     def vuln_auth():
@@ -322,6 +345,14 @@ def lab_server():
     @app.route("/safe/stored-view")
     def safe_stored_view():
         return Response("<html>" + "".join(str(escape(v)) for v in stored["safe"]) + "</html>", mimetype="text/html")
+
+    @app.route("/stored/fail-submit", methods=["POST"])
+    def stored_fail_submit():
+        return Response("submission failed", status=500, mimetype="text/plain")
+
+    @app.route("/stored/fail-view")
+    def stored_fail_view():
+        return Response("view failed", status=500, mimetype="text/html")
 
     @app.route("/vuln/ssrf")
     def vuln_ssrf():

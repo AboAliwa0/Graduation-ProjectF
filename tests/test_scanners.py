@@ -299,7 +299,14 @@ def test_file_upload_positive_and_negative(lab_server):
 
 
 def test_idor_positive_and_negative(lab_server):
-    kwargs = {"param": "id", "authorized_id": "1001", "test_id": "1002", "private_marker": "private_marker"}
+    kwargs = {
+        "param": "id",
+        "authorized_id": "1001",
+        "test_id": "1002",
+        "private_marker": "private_marker",
+        "auth_header_name": "X-Test-Authorization",
+        "auth_header_value": "fixture-secret-token",
+    }
     assert_confirmed(idor.scan(lab_server + "/vuln/idor", **kwargs))
     assert_not_vulnerable(idor.scan(lab_server + "/safe/idor", **kwargs))
 
@@ -308,6 +315,168 @@ def test_weak_password_positive_and_negative(lab_server):
     common = {"username_field": "username", "password_field": "password", "test_username": "test-user", "test_password": "Password1", "success_marker": "Welcome"}
     assert_confirmed(weak_password_scanner.scan(lab_server, login_url=lab_server + "/vuln/login", **common))
     assert_not_vulnerable(weak_password_scanner.scan(lab_server, login_url=lab_server + "/safe/login", **common))
+
+
+def test_phase4a_missing_inputs_and_identical_ids_are_inconclusive(monkeypatch, lab_server):
+    modules_and_calls = [
+        (idor, {"url": lab_server, "param": "id", "authorized_id": "1001", "test_id": "1002"}),
+        (weak_password_scanner, {"url": lab_server, "login_url": lab_server + "/vuln/login"}),
+        (file_upload, {"url": lab_server, "upload_url": lab_server + "/vuln/upload"}),
+        (stored_xss_scanner, {"url": lab_server, "submit_url": lab_server + "/vuln/stored"}),
+    ]
+    for module, kwargs in modules_and_calls:
+        monkeypatch.setattr(module, "safe_request", lambda *args, **request_kwargs: pytest.fail("No request expected"))
+        result = module.scan(**kwargs)
+        assert result["status"] == "inconclusive", result
+        assert result["requests_made"] == 0
+
+    identical = idor.scan(
+        lab_server,
+        param="id",
+        authorized_id="1001",
+        test_id="1001",
+        auth_header_name="Authorization",
+        auth_header_value="Bearer fixture-secret",
+    )
+    assert identical["status"] == "inconclusive"
+    assert identical["requests_made"] == 0
+    assert "1001" not in json.dumps(identical["evidence"])
+
+
+def test_idor_requires_auth_keeps_parity_potential_and_redacts_evidence(lab_server):
+    missing_auth = idor.scan(lab_server + "/vuln/idor", param="id", authorized_id="1001", test_id="1002", private_marker="private_marker")
+    assert missing_auth["status"] == "inconclusive"
+    assert missing_auth["requests_made"] == 0
+
+    secret = "Bearer instructor-fixture-secret"
+    potential = idor.scan(
+        lab_server + "/potential/idor",
+        param="id",
+        authorized_id="1001",
+        test_id="1002",
+        auth_header_name="Authorization",
+        auth_header_value=secret,
+    )
+    assert potential["status"] == "potential" and potential["vulnerable"] is True, potential
+    assert potential["evidence"]["final_decision"] == "potential_response_parity"
+    serialized = json.dumps(potential["evidence"])
+    assert "1001" not in serialized and "1002" not in serialized
+    assert secret not in serialized and "Authorization" not in serialized
+
+
+def test_weak_credential_requires_reliable_success_and_redacts_evidence(lab_server):
+    common = {
+        "test_username": "instructor-test-user",
+        "test_password": "fixture-weak-password",
+        "success_marker": "Welcome",
+    }
+    rejected = weak_password_scanner.scan(lab_server, login_url=lab_server + "/login/marker-401", **common)
+    assert_not_vulnerable(rejected)
+    assert rejected["evidence"]["final_decision"] == "credential_rejected"
+
+    redirected = weak_password_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/login/redirect",
+        test_username=common["test_username"],
+        test_password=common["test_password"],
+        success_redirect_contains="/dashboard",
+    )
+    assert_confirmed(redirected)
+    serialized = json.dumps(redirected["evidence"])
+    assert common["test_username"] not in serialized
+    assert common["test_password"] not in serialized
+    assert "fixture-secret" not in serialized
+
+    missing_criterion = weak_password_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/vuln/login",
+        test_username=common["test_username"],
+        test_password=common["test_password"],
+    )
+    assert missing_criterion["status"] == "inconclusive"
+    assert missing_criterion["requests_made"] == 0
+
+
+def test_file_upload_requires_safe_retrieval_and_redacts_marker(lab_server):
+    no_retrieval = file_upload.scan(lab_server, upload_url=lab_server + "/safe/upload", file_field="file")
+    assert no_retrieval["status"] == "inconclusive"
+    assert no_retrieval["requests_made"] == 1
+    assert no_retrieval["evidence"]["final_decision"] == "no_safe_retrieval_url"
+
+    cross_origin = file_upload.scan(lab_server, upload_url=lab_server + "/upload/cross-origin", file_field="file")
+    assert cross_origin["status"] == "inconclusive"
+    assert cross_origin["requests_made"] == 1
+    assert cross_origin["evidence"]["discovered_url_rejected"] is True
+
+    confirmed = file_upload.scan(lab_server, upload_url=lab_server + "/vuln/upload", file_field="file")
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["marker_retrieved"] is True
+    assert "filename" not in confirmed["evidence"] and "public_url" not in confirmed["evidence"]
+    assert "upload-" not in json.dumps(confirmed["evidence"])
+
+
+def test_stored_xss_failed_steps_are_inconclusive_and_marker_is_redacted(lab_server):
+    failed_submit = stored_xss_scanner.scan(
+        lab_server,
+        submit_url=lab_server + "/stored/fail-submit",
+        view_url=lab_server + "/vuln/stored-view",
+        param_name="comment",
+    )
+    assert failed_submit["status"] == "inconclusive"
+    assert failed_submit["requests_made"] == 1
+    assert failed_submit["evidence"]["final_decision"] == "submission_failed"
+
+    failed_view = stored_xss_scanner.scan(
+        lab_server,
+        submit_url=lab_server + "/vuln/stored",
+        view_url=lab_server + "/stored/fail-view",
+        param_name="comment",
+    )
+    assert failed_view["status"] == "inconclusive"
+    assert failed_view["requests_made"] == 2
+    assert failed_view["evidence"]["final_decision"] == "view_not_successful_html"
+
+    escaped = stored_xss_scanner.scan(
+        lab_server,
+        submit_url=lab_server + "/safe/stored",
+        view_url=lab_server + "/safe/stored-view",
+        param_name="comment",
+    )
+    assert_not_vulnerable(escaped)
+    assert "token" not in escaped["evidence"]
+    assert "storedxss-" not in json.dumps(escaped["evidence"])
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (idor, {"param": "id", "authorized_id": "1001", "test_id": "1002", "private_marker": "private_marker", "auth_header_name": "Authorization", "auth_header_value": "Bearer fixture"}),
+        (weak_password_scanner, {"login_url": "https://target.example/login", "test_username": "test-user", "test_password": "Password1", "success_marker": "Welcome"}),
+        (file_upload, {"upload_url": "https://target.example/upload", "file_field": "file", "public_url_template": "https://target.example/public/{filename}"}),
+        (stored_xss_scanner, {"submit_url": "https://target.example/submit", "view_url": "https://target.example/view", "param_name": "comment"}),
+    ],
+)
+def test_phase4a_transport_errors_count_attempt(monkeypatch, lab_server, module, kwargs):
+    monkeypatch.setattr(module, "safe_request", lambda *args, **request_kwargs: (_ for _ in ()).throw(OSError("transport failed")))
+    result = module.scan(lab_server, **kwargs)
+    assert result["status"] == "error", result
+    assert result["requests_made"] == 1
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (idor, {"param": "id", "authorized_id": "1001", "test_id": "1002", "private_marker": "private_marker", "auth_header_name": "Authorization", "auth_header_value": "Bearer fixture"}),
+        (weak_password_scanner, {"login_url": "https://target.example/login", "test_username": "test-user", "test_password": "Password1", "success_marker": "Welcome"}),
+        (file_upload, {"upload_url": "https://target.example/upload", "file_field": "file", "public_url_template": "https://target.example/public/{filename}"}),
+        (stored_xss_scanner, {"submit_url": "https://target.example/submit", "view_url": "https://target.example/view", "param_name": "comment"}),
+    ],
+)
+@pytest.mark.parametrize("exception", [ScanCancelled("cancelled"), RequestBudgetExceeded("budget")])
+def test_phase4a_runtime_stop_exceptions_propagate(monkeypatch, lab_server, module, kwargs, exception):
+    monkeypatch.setattr(module, "safe_request", lambda *args, **request_kwargs: (_ for _ in ()).throw(exception))
+    with pytest.raises(type(exception)):
+        module.scan(lab_server, **kwargs)
 
 
 def test_login_abuse_protection(lab_server):
