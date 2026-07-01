@@ -654,4 +654,109 @@ def test_ssrf_requires_real_callback(lab_server):
 
 
 def test_blind_xss_requires_real_callback(lab_server):
-    assert_confirmed(blind_xss.scan(lab_server + "/vuln/blind-xss", param="message", callback_base_url=lab_server))
+    fetched_only = blind_xss.scan(lab_server + "/vuln/blind-xss", param="message", callback_base_url=lab_server)
+    assert fetched_only["status"] == "potential" and fetched_only["vulnerable"] is True, fetched_only
+    assert fetched_only["evidence"]["script_fetch_observed"] is True
+    assert fetched_only["evidence"]["execution_beacon_observed"] is False
+
+    executed = blind_xss.scan(lab_server + "/vuln/blind-xss-execute", param="message", callback_base_url=lab_server)
+    assert_confirmed(executed)
+    assert executed["evidence"]["execution_beacon_observed"] is True
+
+
+def test_phase4b_missing_callback_setup_is_inconclusive(monkeypatch, lab_server):
+    monkeypatch.delenv("OAST_PUBLIC_BASE_URL", raising=False)
+    for module, kwargs in (
+        (ssrf_scanner, {"param": "url"}),
+        (blind_xss, {"param": "message"}),
+    ):
+        monkeypatch.setattr(module, "safe_request", lambda *args, **request_kwargs: pytest.fail("No request expected"))
+        result = module.scan(lab_server, **kwargs)
+        assert result["status"] == "inconclusive", result
+        assert result["requests_made"] == 0
+        assert result["evidence"]["callback_configured"] is False
+
+
+def test_phase4b_no_callback_observed_is_inconclusive(monkeypatch, lab_server):
+    monkeypatch.setattr(ssrf_scanner, "wait_for_hit", lambda token, timeout: [])
+    ssrf_result = ssrf_scanner.scan(lab_server + "/safe/ssrf", param="url", callback_base_url=lab_server)
+    assert ssrf_result["status"] == "inconclusive"
+    assert ssrf_result["evidence"]["callback_observed"] is False
+    assert ssrf_result["evidence"]["hit_count"] == 0
+
+    monkeypatch.setattr(blind_xss, "wait_for_hit", lambda token, timeout: [])
+    blind_result = blind_xss.scan(lab_server + "/safe/blind-xss", param="message", callback_base_url=lab_server)
+    assert blind_result["status"] == "inconclusive"
+    assert blind_result["evidence"]["script_fetch_observed"] is False
+    assert blind_result["evidence"]["execution_beacon_observed"] is False
+
+
+def test_phase4b_private_callback_requires_explicit_local_lab_mode(monkeypatch, lab_server):
+    monkeypatch.setenv("OAST_ALLOW_PRIVATE_CALLBACKS", "false")
+    for module, kwargs in (
+        (ssrf_scanner, {"param": "url"}),
+        (blind_xss, {"param": "message"}),
+    ):
+        result = module.scan(lab_server, callback_base_url=lab_server, **kwargs)
+        assert result["status"] == "inconclusive", result
+        assert result["requests_made"] == 0
+        assert result["evidence"]["final_decision"] == "invalid_or_blocked_callback"
+
+
+def test_phase4b_callback_evidence_redacts_tokens_and_urls(monkeypatch, lab_server):
+    ssrf_token = "ssrf-raw-secret-token"
+    monkeypatch.setattr(ssrf_scanner, "unique_token", lambda prefix: ssrf_token)
+    ssrf_result = ssrf_scanner.scan(lab_server + "/vuln/ssrf", param="url", callback_base_url=lab_server)
+    assert_confirmed(ssrf_result)
+    serialized_ssrf = json.dumps(ssrf_result)
+    assert ssrf_token not in serialized_ssrf
+    assert "/oast/" not in serialized_ssrf
+    assert "callback_hits" not in ssrf_result["evidence"]
+
+    tokens = iter(["blind-fetch-raw-secret", "blind-exec-raw-secret"])
+    monkeypatch.setattr(blind_xss, "unique_token", lambda prefix: next(tokens))
+    blind_result = blind_xss.scan(
+        lab_server + "/vuln/blind-xss-execute",
+        param="message",
+        callback_base_url=lab_server,
+    )
+    assert_confirmed(blind_result)
+    serialized_blind = json.dumps(blind_result)
+    assert "blind-fetch-raw-secret" not in serialized_blind
+    assert "blind-exec-raw-secret" not in serialized_blind
+    assert "/oast/" not in serialized_blind
+    assert "callback_hits" not in blind_result["evidence"]
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (ssrf_scanner, {"param": "url"}),
+        (blind_xss, {"param": "message"}),
+    ],
+)
+def test_phase4b_transport_errors_count_attempt(monkeypatch, lab_server, module, kwargs):
+    def fail_request(*args, **request_kwargs):
+        raise OSError("transport failed")
+
+    monkeypatch.setattr(module, "safe_request", fail_request)
+    result = module.scan(lab_server, callback_base_url=lab_server, **kwargs)
+    assert result["status"] == "error", result
+    assert result["requests_made"] == 1
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (ssrf_scanner, {"param": "url"}),
+        (blind_xss, {"param": "message"}),
+    ],
+)
+@pytest.mark.parametrize("exception", [ScanCancelled("cancelled"), RequestBudgetExceeded("budget")])
+def test_phase4b_runtime_stop_exceptions_propagate(monkeypatch, lab_server, module, kwargs, exception):
+    def stop_request(*args, **request_kwargs):
+        raise exception
+
+    monkeypatch.setattr(module, "safe_request", stop_request)
+    with pytest.raises(type(exception)):
+        module.scan(lab_server, callback_base_url=lab_server, **kwargs)

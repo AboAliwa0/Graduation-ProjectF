@@ -12,6 +12,7 @@ from werkzeug.serving import make_server
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ["ALLOW_PRIVATE_TARGETS"] = "true"
+os.environ["OAST_ALLOW_PRIVATE_CALLBACKS"] = "true"
 os.environ["SCANNER_TIMEOUT"] = "3"
 
 from services.oast import record_hit  # noqa: E402
@@ -362,6 +363,10 @@ def lab_server():
             requests.get(destination, timeout=2)
         return Response("processed", mimetype="text/plain")
 
+    @app.route("/safe/ssrf")
+    def safe_ssrf():
+        return Response("URL accepted without a server-side request", mimetype="text/plain")
+
     @app.route("/vuln/blind-xss")
     def vuln_blind_xss():
         import re
@@ -371,6 +376,28 @@ def lab_server():
         if match:
             requests.get(match.group(1), timeout=2)
         return Response("stored", mimetype="text/plain")
+
+    @app.route("/vuln/blind-xss-execute")
+    def vuln_blind_xss_execute():
+        import re
+        from urllib.parse import parse_qs, urlparse
+
+        import requests
+
+        value = request.args.get("message", "")
+        match = re.search(r'<script\s+src="([^"]+)"', value, flags=re.I)
+        if match:
+            script_url = match.group(1)
+            requests.get(script_url, timeout=2)
+            parsed = urlparse(script_url)
+            execution_token = parse_qs(parsed.query).get("execution", [""])[0]
+            if execution_token:
+                requests.get(f"{parsed.scheme}://{parsed.netloc}/oast/{execution_token}", timeout=2)
+        return Response("rendered in isolated browser fixture", mimetype="text/plain")
+
+    @app.route("/safe/blind-xss")
+    def safe_blind_xss():
+        return Response("stored as inert text", mimetype="text/plain")
 
     @app.route("/echo-auth")
     def echo_auth():
@@ -498,7 +525,10 @@ def lab_server():
 
     @app.route("/oast/<token>", methods=["GET", "POST"])
     def callback(token):
-        return Response("recorded", status=200 if record_hit(token, {"source": "test-lab"}) else 404, mimetype="application/javascript")
+        execution_token = request.args.get("execution", "")
+        event = "script_fetch" if execution_token else "callback"
+        recorded = record_hit(token, {"event": event})
+        return Response("/* isolated OAST fixture */", status=200 if recorded else 404, mimetype="application/javascript")
 
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))

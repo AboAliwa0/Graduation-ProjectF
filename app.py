@@ -27,7 +27,7 @@ from services.auth_profiles import AuthProfileError, parse_auth_profiles, parse_
 from services.distributed_queue import QueueConfigurationError, get_queue, redis_backend_enabled
 from main import load_scanners
 from routes_ai import ai_bp
-from services.oast import record_hit
+from services.oast import is_registered, record_hit
 from services.scan_manager import active_count_for_user, cancel as cancel_managed_scan, register as register_scan_runtime, submit as submit_scan_job
 from services.scan_runtime import RequestBudgetExceeded, ScanCancelled, ScanRuntime, activate_runtime
 from vulnerabilities.common import UnsafeTargetError, env_bool as scanner_env_bool, validate_target_url
@@ -1507,9 +1507,26 @@ def cancel_scan(scan_id: int):
 
 @app.route("/oast/<token>", methods=["GET", "POST"])
 def oast_callback(token: str):
-    recorded = record_hit(token, {"remote_addr": request.remote_addr, "method": request.method, "user_agent": request.headers.get("User-Agent", "")})
-    response = app.response_class("/* CyberScan callback recorded */", mimetype="application/javascript")
+    execution_token = request.args.get("execution", "")
+    event = "script_fetch" if execution_token else "callback"
+    recorded = record_hit(token, {"event": event})
+    body = "/* CyberScan callback recorded */"
+    if (
+        recorded
+        and execution_token
+        and re.fullmatch(r"[A-Za-z0-9_-]{8,128}", execution_token)
+        and is_registered(execution_token)
+    ):
+        encoded_token = json.dumps(execution_token)
+        body = (
+            "(function(){var s=document.currentScript;if(!s)return;"
+            "var u=new URL(s.src);u.search='';u.hash='';"
+            f"u.pathname=u.pathname.replace(/[^/]+$/, {encoded_token});"
+            "var i=new Image();i.referrerPolicy='no-referrer';i.src=u.toString();})();"
+        )
+    response = app.response_class(body, mimetype="application/javascript")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response, 200 if recorded else 404
 
 
