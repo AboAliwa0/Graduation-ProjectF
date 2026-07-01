@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -21,7 +20,21 @@ inputs = [
 ]
 
 SENSITIVE_PATH = re.compile(r"/(admin|internal|management|private|accounts?|users?|billing|payments?)(?:[/_-]|$)", re.I)
-RANK = {"anonymous": 0, "low": 1, "user": 1, "unknown": 1, "high": 2, "admin": 3}
+RANK = {"anonymous": 0, "low": 1, "user": 1, "high": 2, "admin": 3}
+
+
+def _validated_profiles(raw_profiles) -> list[dict]:
+    profiles = []
+    for item in raw_profiles or []:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("expected_access") or "").strip().lower()
+        headers = item.get("headers") or {}
+        cookies = item.get("cookies") or {}
+        if role not in RANK or not isinstance(headers, dict) or not isinstance(cookies, dict):
+            continue
+        profiles.append({"expected_access": role, "headers": headers, "cookies": cookies})
+    return profiles
 
 
 def _candidate_endpoints(url: str, raw: str, runtime, limit: int) -> list[str]:
@@ -73,28 +86,76 @@ def _request_as(endpoint: str, profile: dict) -> dict:
 
 
 def scan(url, endpoints="", max_endpoints="20"):
+    requests_made = 0
     runtime = current_runtime()
-    profiles = list((runtime.ephemeral if runtime else {}).get("auth_profiles") or [])
-    if len(profiles) < 2:
-        return make_result(False, "At least two authorized auth profiles are required for role comparison.", severity="Info", confidence="High", status="inconclusive", endpoint=url)
-    profiles.sort(key=lambda item: RANK.get(str(item.get("expected_access") or "unknown"), 1))
-    low = profiles[0]
-    high = profiles[-1]
-    limit = max(1, min(int(max_endpoints or 20), 60))
-    candidates = _candidate_endpoints(url, str(endpoints or ""), runtime, limit)
-    if not candidates:
-        return make_result(False, "No safe same-host GET endpoints were supplied or discovered for role comparison.", severity="Info", confidence="High", status="inconclusive", endpoint=url)
-    observations = []
-    suspicious = []
     try:
+        try:
+            limit = int(max_endpoints or 20)
+        except (TypeError, ValueError):
+            return make_result(
+                False,
+                "Maximum endpoints must be a whole number between 1 and 60.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                evidence={"validation_error": "invalid_max_endpoints"},
+                endpoint=url,
+                requests_made=0,
+            )
+        if not 1 <= limit <= 60:
+            return make_result(
+                False,
+                "Maximum endpoints must be between 1 and 60.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                evidence={"validation_error": "max_endpoints_out_of_range"},
+                endpoint=url,
+                requests_made=0,
+            )
+
+        raw_profiles = (runtime.ephemeral if runtime else {}).get("auth_profiles") or []
+        profiles = _validated_profiles(raw_profiles)
+        role_levels = {RANK[item["expected_access"]] for item in profiles}
+        if len(profiles) < 2 or len(role_levels) < 2:
+            return make_result(
+                False,
+                "At least two valid authorized auth profiles with different access levels are required.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                evidence={"valid_profile_count": len(profiles), "distinct_role_levels": len(role_levels)},
+                endpoint=url,
+                requests_made=0,
+            )
+        profiles.sort(key=lambda item: RANK[item["expected_access"]])
+        low = profiles[0]
+        high = profiles[-1]
+
+        candidates = _candidate_endpoints(url, str(endpoints or ""), runtime, limit)
+        if not candidates:
+            return make_result(
+                False,
+                "No safe same-host GET endpoints were supplied or discovered for role comparison.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                endpoint=url,
+                requests_made=0,
+            )
+
+        observations = []
+        suspicious = []
         for endpoint in candidates:
+            requests_made += 1
             low_response = _request_as(endpoint, low)
+            requests_made += 1
             high_response = _request_as(endpoint, high)
             score = similarity(low_response["text"], high_response["text"])
             item = {
                 "endpoint": endpoint,
-                "low_profile": low.get("name", "low"),
-                "high_profile": high.get("name", "high"),
+                "low_role": low["expected_access"],
+                "high_role": high["expected_access"],
                 "low_status": low_response["status"],
                 "high_status": high_response["status"],
                 "similarity": round(score, 3),
@@ -105,7 +166,7 @@ def scan(url, endpoints="", max_endpoints="20"):
                 suspicious.append(item)
         if runtime is not None:
             runtime.artifacts["authorization_matrix"] = {
-                "profiles": [{"name": p.get("name"), "expected_access": p.get("expected_access")} for p in profiles],
+                "roles": [p["expected_access"] for p in profiles],
                 "observations": observations,
             }
         if suspicious:
@@ -120,9 +181,10 @@ def scan(url, endpoints="", max_endpoints="20"):
                 endpoint=suspicious[0]["endpoint"],
                 cwe="CWE-862",
                 cvss=7.5,
+                requests_made=requests_made,
             )
-        return make_result(False, "No high-similarity authorization parity was observed across the supplied read-only endpoints.", severity="Info", confidence="Medium", evidence={"observations": observations}, endpoint=url)
+        return make_result(False, "No high-similarity authorization parity was observed across the supplied read-only endpoints.", severity="Info", confidence="Medium", evidence={"observations": observations}, endpoint=url, requests_made=requests_made)
     except (ScanCancelled, RequestBudgetExceeded):
         raise
     except Exception as exc:
-        return make_result(False, f"Authorization matrix assessment failed: {exc}", severity="Info", confidence="Low", status="error", endpoint=url)
+        return make_result(False, f"Authorization matrix assessment failed: {exc}", severity="Info", confidence="Low", status="error", endpoint=url, requests_made=requests_made)

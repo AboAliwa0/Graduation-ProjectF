@@ -36,6 +36,22 @@ def lab_server():
         response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
         return response
 
+    @app.route("/safe/csp-self")
+    def safe_csp_self():
+        response = Response("safe CSP page", mimetype="text/html")
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'self'"
+        return response
+
+    @app.route("/vuln/csp-wildcard")
+    def vulnerable_csp_wildcard():
+        response = Response("frame me", mimetype="text/html")
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors *"
+        return response
+
+    @app.route("/api/json")
+    def json_api():
+        return jsonify({"status": "ok"})
+
     @app.route("/vuln/clickjacking")
     def vuln_clickjacking():
         return Response("frame me", mimetype="text/html")
@@ -47,7 +63,32 @@ def lab_server():
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Vary"] = "Origin"
         return response
+
+    @app.route("/potential/cors", methods=["GET", "OPTIONS"])
+    def potential_cors():
+        origin = request.headers.get("Origin", "")
+        response = Response("public documentation", mimetype="text/plain")
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        return response
+
+    @app.route("/info/cors-wildcard", methods=["GET", "OPTIONS"])
+    def informational_cors_wildcard():
+        response = Response("public data", mimetype="text/plain")
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.route("/safe/cors-failed-preflight", methods=["GET", "OPTIONS"])
+    def failed_cors_preflight():
+        if request.method == "OPTIONS":
+            response = Response("forbidden", status=403, mimetype="text/plain")
+            response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "")
+            return response
+        return Response("public data", mimetype="text/plain")
 
     @app.route("/safe/cors", methods=["GET", "OPTIONS"])
     def safe_cors():

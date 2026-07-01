@@ -44,9 +44,59 @@ def test_clickjacking_positive_and_negative(lab_server):
     assert_not_vulnerable(clickjacking_scanner.scan(lab_server + "/safe/headers"))
 
 
+def test_clickjacking_parses_frame_ancestors_and_skips_non_html(lab_server):
+    protected = clickjacking_scanner.scan(lab_server + "/safe/csp-self")
+    assert_not_vulnerable(protected)
+    assert protected["evidence"]["frame_ancestors"] == ["'self'"]
+
+    wildcard = clickjacking_scanner.scan(lab_server + "/vuln/csp-wildcard")
+    assert_confirmed(wildcard)
+    assert wildcard["evidence"]["frame_ancestors"] == ["*"]
+
+    api_result = clickjacking_scanner.scan(lab_server + "/api/json")
+    assert api_result["status"] == "inconclusive"
+    assert api_result["evidence"]["content_type"].startswith("application/json")
+
+
 def test_cors_positive_and_negative(lab_server):
-    assert_confirmed(cors_scanner.scan(lab_server + "/vuln/cors"))
+    confirmed = cors_scanner.scan(lab_server + "/vuln/cors")
+    assert_confirmed(confirmed)
+    assert confirmed["requests_made"] == 3
+    assert all("vary" in item and "vary_origin" in item for item in confirmed["evidence"]["observations"])
     assert_not_vulnerable(cors_scanner.scan(lab_server + "/safe/cors"))
+
+
+def test_cors_conservative_classification(lab_server):
+    reflected = cors_scanner.scan(lab_server + "/potential/cors")
+    assert reflected["status"] == "potential"
+
+    wildcard = cors_scanner.scan(lab_server + "/info/cors-wildcard")
+    assert wildcard["status"] == "not_vulnerable"
+    assert "observations were recorded" in wildcard["result"]
+
+    failed_preflight = cors_scanner.scan(lab_server + "/safe/cors-failed-preflight")
+    assert failed_preflight["status"] == "not_vulnerable"
+    preflight = failed_preflight["evidence"]["observations"][-1]
+    assert preflight["status_code"] == 403
+    assert preflight["classification"] == "informational"
+
+
+def test_cors_transport_error_counts_attempt_and_runtime_stops_propagate(monkeypatch, lab_server):
+    def transport_error(*args, **kwargs):
+        raise OSError("transport failed")
+
+    monkeypatch.setattr(cors_scanner, "safe_request", transport_error)
+    result = cors_scanner.scan(lab_server)
+    assert result["status"] == "error"
+    assert result["requests_made"] == 1
+
+    for exception in (ScanCancelled("cancelled"), RequestBudgetExceeded("budget")):
+        def runtime_stop(*args, _exception=exception, **kwargs):
+            raise _exception
+
+        monkeypatch.setattr(cors_scanner, "safe_request", runtime_stop)
+        with pytest.raises(type(exception)):
+            cors_scanner.scan(lab_server)
 
 
 def test_csrf_indicator_and_negative(lab_server):

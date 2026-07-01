@@ -84,6 +84,8 @@ def test_authorization_matrix_detects_potential_parity(lab_server):
         result = authorization_matrix_scanner.scan(lab_server, endpoints="/roles/admin-vuln", max_endpoints="5")
     assert result["status"] == "potential", result
     assert result["severity"] == "High"
+    assert result["requests_made"] == 2
+    assert "low-role" not in str(result) and "high-role" not in str(result)
     assert runtime.artifacts["authorization_matrix"]["observations"]
 
 
@@ -103,6 +105,40 @@ def test_authorization_matrix_accepts_role_separation(lab_server):
     with activate_runtime(runtime):
         result = authorization_matrix_scanner.scan(lab_server, endpoints="/roles/admin-safe", max_endpoints="5")
     assert result["status"] == "not_vulnerable", result
+
+
+def test_authorization_matrix_rejects_invalid_limit_and_profiles(lab_server):
+    runtime = ScanRuntime(
+        scan_id=5014,
+        user_id=1,
+        request_budget=30,
+        allow_private=True,
+        ephemeral={"auth_profiles": ["invalid", {"expected_access": "admin", "headers": []}]},
+    )
+    with activate_runtime(runtime):
+        invalid_limit = authorization_matrix_scanner.scan(lab_server, endpoints="/roles/admin-vuln", max_endpoints="many")
+        invalid_profiles = authorization_matrix_scanner.scan(lab_server, endpoints="/roles/admin-vuln", max_endpoints="5")
+    assert invalid_limit["status"] == "inconclusive" and invalid_limit["requests_made"] == 0
+    assert invalid_profiles["status"] == "inconclusive" and invalid_profiles["requests_made"] == 0
+
+
+def test_authorization_matrix_requires_distinct_role_levels(lab_server):
+    runtime = ScanRuntime(
+        scan_id=5015,
+        user_id=1,
+        request_budget=30,
+        allow_private=True,
+        ephemeral={
+            "auth_profiles": [
+                {"expected_access": "low", "headers": {"Authorization": "Bearer first"}},
+                {"expected_access": "user", "headers": {"Authorization": "Bearer second"}},
+            ]
+        },
+    )
+    with activate_runtime(runtime):
+        result = authorization_matrix_scanner.scan(lab_server, endpoints="/roles/admin-vuln", max_endpoints="5")
+    assert result["status"] == "inconclusive"
+    assert result["requests_made"] == 0
 
 
 @pytest.fixture

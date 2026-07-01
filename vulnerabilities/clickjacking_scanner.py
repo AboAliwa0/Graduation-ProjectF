@@ -10,6 +10,14 @@ meta = {
 inputs = []
 
 
+def _parse_frame_ancestors(csp):
+    for directive in str(csp or "").split(";"):
+        tokens = directive.strip().split()
+        if tokens and tokens[0].lower() == "frame-ancestors":
+            return [token.lower() for token in tokens[1:]]
+    return []
+
+
 def scan(url):
     requests_made = 0
     try:
@@ -19,10 +27,10 @@ def scan(url):
         xfo = response.headers.get("X-Frame-Options", "").strip()
         csp = response.headers.get("Content-Security-Policy", "")
         xfo_value = xfo.upper()
-        csp_lower = csp.lower()
 
         valid_xfo = xfo_value in {"DENY", "SAMEORIGIN"}
-        has_frame_ancestors = "frame-ancestors" in csp_lower
+        frame_ancestors = _parse_frame_ancestors(csp)
+        valid_frame_ancestors = frame_ancestors in [["'none'"], ["'self'"]]
         weak_xfo = bool(xfo) and not valid_xfo
 
         evidence = {
@@ -30,6 +38,7 @@ def scan(url):
             "content_security_policy": csp or "missing",
             "status_code": response.status_code,
             "content_type": response.headers.get("Content-Type", ""),
+            "frame_ancestors": frame_ancestors,
         }
 
         successful_html = 200 <= response.status_code < 300 and any(
@@ -48,7 +57,7 @@ def scan(url):
                 requests_made=requests_made,
             )
 
-        if not valid_xfo and not has_frame_ancestors:
+        if not valid_xfo and not valid_frame_ancestors:
             message = "The page has no effective X-Frame-Options or CSP frame-ancestors protection."
             if weak_xfo:
                 message += " The supplied X-Frame-Options value is not broadly supported or valid."

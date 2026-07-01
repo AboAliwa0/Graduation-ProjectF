@@ -24,12 +24,18 @@ def _response_context(response):
     cache_control = response.headers.get("Cache-Control", "").lower()
     authenticated_request = bool(request_headers.get("Authorization") or request_headers.get("Cookie"))
     sensitive_markers = sorted({match.group(0).lower() for match in SENSITIVE_MARKERS.finditer(body[:200_000])})[:20]
-    clearly_protected = authenticated_request or "private" in cache_control or "no-store" in cache_control
+    protected_cache_policy = "private" in cache_control or "no-store" in cache_control
+    clearly_protected = authenticated_request or protected_cache_policy
     return {
         "status_code": response.status_code,
         "content_type": response.headers.get("Content-Type", ""),
+        "vary_origin": "origin" in {
+            item.strip().lower() for item in response.headers.get("Vary", "").split(",") if item.strip()
+        },
+        "vary": response.headers.get("Vary", ""),
         "authenticated_request": authenticated_request,
         "clearly_protected": clearly_protected,
+        "protected_cache_policy": protected_cache_policy,
         "sensitive_markers": sensitive_markers,
     }
 
@@ -39,40 +45,49 @@ def scan(url):
     requests_made = 0
     try:
         for origin in TEST_ORIGINS:
-            response = safe_request("GET", url, headers={"Origin": origin})
             requests_made += 1
+            response = safe_request("GET", url, headers={"Origin": origin})
             allow_origin = response.headers.get("Access-Control-Allow-Origin", "").strip()
             credentials = response.headers.get("Access-Control-Allow-Credentials", "").strip().lower() == "true"
             context = _response_context(response)
+            sensitive_or_protected = context["authenticated_request"] or (
+                context["protected_cache_policy"] and bool(context["sensitive_markers"])
+            )
             strong_risk = (
                 credentials
                 and 200 <= response.status_code < 300
-                and (context["clearly_protected"] or bool(context["sensitive_markers"]))
+                and sensitive_or_protected
             )
 
+            observation = {
+                "issue": "none",
+                "origin": origin,
+                "allow_origin": allow_origin or "missing",
+                "credentials": credentials,
+                "vary": context["vary"],
+                "vary_origin": context["vary_origin"],
+                "severity": "Info",
+                "classification": "informational",
+                "context": context,
+            }
             if allow_origin == origin:
-                findings.append({
+                observation.update({
                     "issue": "null_origin_allowed" if origin == "null" else "arbitrary_origin_reflection",
-                    "origin": origin,
-                    "allow_origin": allow_origin,
-                    "credentials": credentials,
                     "severity": "High" if strong_risk else "Medium",
                     "classification": "confirmed" if strong_risk else "potential",
-                    "context": context,
                 })
             elif allow_origin == "*" and credentials:
                 # Browsers reject wildcard + credentials, so this is a bad policy but not
                 # the same as credentialed arbitrary-origin access.
-                findings.append({
+                observation.update({
                     "issue": "invalid_wildcard_credentials_combination",
-                    "origin": origin,
-                    "credentials": True,
                     "severity": "Low",
                     "classification": "informational",
-                    "context": context,
                 })
+            findings.append(observation)
 
         preflight_origin = TEST_ORIGINS[0]
+        requests_made += 1
         preflight = safe_request(
             "OPTIONS",
             url,
@@ -82,19 +97,23 @@ def scan(url):
                 "Access-Control-Request-Headers": "Authorization, Content-Type",
             },
         )
-        requests_made += 1
         preflight_allow = preflight.headers.get("Access-Control-Allow-Origin", "").strip()
         preflight_creds = preflight.headers.get("Access-Control-Allow-Credentials", "").strip().lower() == "true"
-        if preflight_allow == preflight_origin:
-            findings.append({
-                "issue": "preflight_allows_arbitrary_origin",
-                "origin": preflight_origin,
-                "credentials": preflight_creds,
-                "severity": "High" if preflight_creds else "Medium",
-                "classification": "potential",
-                "status_code": preflight.status_code,
-                "allow_origin": preflight_allow,
-            })
+        preflight_context = _response_context(preflight)
+        preflight_successful = 200 <= preflight.status_code < 300
+        preflight_reflected = preflight_allow == preflight_origin
+        findings.append({
+            "issue": "preflight_allows_arbitrary_origin" if preflight_successful and preflight_reflected else "preflight_not_permissive",
+            "origin": preflight_origin,
+            "credentials": preflight_creds,
+            "severity": "High" if preflight_successful and preflight_reflected and preflight_creds else ("Medium" if preflight_successful and preflight_reflected else "Info"),
+            "classification": "potential" if preflight_successful and preflight_reflected else "informational",
+            "status_code": preflight.status_code,
+            "allow_origin": preflight_allow or "missing",
+            "vary": preflight_context["vary"],
+            "vary_origin": preflight_context["vary_origin"],
+            "context": preflight_context,
+        })
 
         confirmed = [item for item in findings if item["classification"] == "confirmed"]
         potential = [item for item in findings if item["classification"] == "potential"]
@@ -128,9 +147,15 @@ def scan(url):
                 requests_made=requests_made,
             )
 
+        informational = [item for item in findings if item["classification"] == "informational" and item["issue"] != "none"]
+        message = (
+            "CORS policy observations were recorded, but no browser-exploitable cross-origin access was confirmed."
+            if informational
+            else "No arbitrary-origin CORS behavior was detected."
+        )
         return make_result(
             False,
-            "No arbitrary-origin CORS behavior was detected.",
+            message,
             severity="Info",
             confidence="High",
             evidence={"tested_origins": list(TEST_ORIGINS), "observations": findings},
