@@ -1,8 +1,16 @@
 from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
 import re
-from urllib.parse import urljoin
 
-from vulnerabilities.common import body_text, error_result, make_result, safe_request
+from vulnerabilities.common import (
+    UnsafeTargetError,
+    body_text,
+    error_result,
+    inconclusive,
+    make_result,
+    resolve_same_origin_url,
+    safe_request,
+    sanitize_url,
+)
 
 meta = {
     "name": "Directory Listing",
@@ -41,14 +49,28 @@ def _page_title(text):
 
 
 def scan(url, paths=""):
-    selected = [item.strip().lstrip("/") for item in str(paths or "").split(",") if item.strip()]
+    selected = [item.strip() for item in str(paths or "").split(",") if item.strip()]
     selected = (selected or list(DEFAULT_PATHS))[:10]
     found = []
     checked = []
+    unsafe_paths = []
     requests_made = 0
     try:
         for path in selected:
-            candidate = urljoin(url.rstrip("/") + "/", path)
+            try:
+                candidate = resolve_same_origin_url(url, path)
+            except UnsafeTargetError:
+                unsafe_paths.append(sanitize_url(path))
+                checked.append({
+                    "path": sanitize_url(path),
+                    "url": "",
+                    "status_code": None,
+                    "title": "",
+                    "signature": "",
+                    "link_count": 0,
+                    "final_decision": "unsafe_cross_origin_path_skipped",
+                })
+                continue
             requests_made += 1
             response = safe_request("GET", candidate)
             text = body_text(response)
@@ -61,6 +83,7 @@ def scan(url, paths=""):
                 "title": _page_title(text),
                 "signature": signature,
                 "link_count": link_count,
+                "final_decision": "directory_listing_confirmed" if response.status_code == 200 and link_count >= 2 and signature else "no_listing_signature",
             }
             checked.append(item)
             if response.status_code == 200 and link_count >= 2 and signature:
@@ -79,12 +102,29 @@ def scan(url, paths=""):
                 cvss=5.3,
                 requests_made=requests_made,
             )
+        if unsafe_paths and requests_made == 0:
+            return inconclusive(
+                "No directory paths were tested because every configured path left the authorized target origin.",
+                evidence={
+                    "tested_paths": selected,
+                    "unsafe_paths": unsafe_paths,
+                    "checked_paths": checked,
+                    "final_decision": "no_safe_same_origin_paths",
+                },
+                endpoint=url,
+                requests_made=0,
+            )
         return make_result(
             False,
             "No directory listing signature was found in the tested paths.",
             severity="Info",
             confidence="Medium",
-            evidence={"tested_paths": selected, "checked_paths": checked},
+            evidence={
+                "tested_paths": selected,
+                "unsafe_paths": unsafe_paths,
+                "checked_paths": checked,
+                "final_decision": "no_directory_listing_confirmed",
+            },
             endpoint=url,
             cwe="CWE-548",
             requests_made=requests_made,

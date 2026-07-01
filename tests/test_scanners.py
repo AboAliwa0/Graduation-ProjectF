@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled, ScanRuntime, activate_runtime
+from vulnerabilities.common import make_result, safe_request
 from vulnerabilities import (
     auth_scanner,
     blind_xss,
@@ -139,6 +140,12 @@ def test_directory_listing_positive_and_negative(lab_server):
     assert_not_vulnerable(custom)
     assert custom["evidence"]["checked_paths"][0]["signature"] == ""
 
+    external = lab_server.replace("127.0.0.1", "localhost") + "/lab/uploads/"
+    blocked = dir_scan.scan(lab_server + "/lab/", paths=external)
+    assert blocked["status"] == "inconclusive"
+    assert blocked["requests_made"] == 0
+    assert blocked["evidence"]["final_decision"] == "no_safe_same_origin_paths"
+
 
 def test_information_disclosure_positive_and_header_only_negative(lab_server):
     assert_confirmed(info_scan.scan(lab_server + "/vuln/info"))
@@ -178,6 +185,65 @@ def test_host_header_body_reflection_is_potential_and_safe_is_negative(lab_serve
     redirect_result = host_header_scanner.scan(lab_server + "/vuln/host-redirect")
     assert_confirmed(redirect_result)
     assert any("location" in item["reflection_context"] for item in redirect_result["evidence"]["observations"])
+    assert redirect_result["evidence"]["final_decision"] == "confirmed_external_3xx_redirect"
+
+    location_without_redirect = host_header_scanner.scan(lab_server + "/vuln/host-location-200")
+    assert location_without_redirect["status"] == "potential"
+    assert location_without_redirect["vulnerable"] is True
+    assert location_without_redirect["evidence"]["final_decision"] == "potential_host_reflection"
+
+
+def test_redirect_policy_preserves_same_origin_auth_and_blocks_cross_origin(lab_server):
+    same_runtime = ScanRuntime(
+        scan_id=9001,
+        user_id=1,
+        request_budget=5,
+        default_headers={"Authorization": "Bearer same-origin-secret"},
+        cookies={"session": "same-origin-cookie"},
+        allow_private=True,
+    )
+    with activate_runtime(same_runtime):
+        same = safe_request("GET", lab_server + "/redirect/same-origin", allow_redirects=True)
+    assert same.status_code == 200
+    assert same.json()["authorization"] == "Bearer same-origin-secret"
+    assert "session=same-origin-cookie" in same.json()["cookie"]
+    assert same_runtime.request_count == 2
+
+    cross_runtime = ScanRuntime(
+        scan_id=9002,
+        user_id=1,
+        request_budget=5,
+        default_headers={"Authorization": "Bearer never-cross-origin"},
+        cookies={"session": "never-cross-origin-cookie"},
+        allow_private=True,
+    )
+    with activate_runtime(cross_runtime):
+        cross = safe_request("GET", lab_server + "/redirect/cross-origin", allow_redirects=True)
+    assert cross.status_code == 302
+    assert cross_runtime.request_count == 1
+
+
+def test_sensitive_query_values_are_redacted_in_result_urls(lab_server):
+    raw_secret = "do-not-store-this-value"
+    result = make_result(
+        True,
+        "Safe URL redaction test",
+        evidence={
+            "endpoint": f"{lab_server}/account?access_token={raw_secret}&view=summary",
+            "actions": [f"{lab_server}/login?code={raw_secret}&next=dashboard"],
+            "location": f"/callback?session={raw_secret}&mode=test",
+        },
+        endpoint=f"{lab_server}/scan?api_key={raw_secret}&page=1",
+    )
+    serialized = json.dumps(result)
+    assert raw_secret not in serialized
+    assert "/account?" in result["evidence"]["endpoint"]
+    assert "view=summary" in result["evidence"]["endpoint"]
+    assert "page=1" in result["endpoint"]
+
+    redirect_result = open_redirect_scanner.scan(lab_server + "/safe/redirect-sensitive", param="next")
+    assert raw_secret not in json.dumps(redirect_result)
+    assert "fixture-secret" not in json.dumps(redirect_result)
 
 
 def test_html_injection_positive_and_non_executable_contexts(lab_server):

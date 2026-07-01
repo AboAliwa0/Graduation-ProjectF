@@ -137,6 +137,19 @@ def lab_server():
     def safe_redirect():
         return redirect("/safe/headers", 302)
 
+    @app.route("/safe/redirect-sensitive")
+    def safe_redirect_sensitive():
+        return redirect("/safe/headers?access_token=fixture-secret&view=summary", 302)
+
+    @app.route("/redirect/same-origin")
+    def same_origin_redirect():
+        return redirect("/echo-auth", 302)
+
+    @app.route("/redirect/cross-origin")
+    def cross_origin_redirect():
+        port = request.host.rsplit(":", 1)[-1]
+        return redirect(f"http://localhost:{port}/echo-auth?token=fixture-secret", 302)
+
     @app.route("/vuln/host")
     def vuln_host():
         return Response(f"reset link: https://{request.host}/reset", mimetype="text/html")
@@ -144,6 +157,12 @@ def lab_server():
     @app.route("/vuln/host-redirect")
     def vuln_host_redirect():
         return redirect(f"https://{request.host}/reset", 302)
+
+    @app.route("/vuln/host-location-200")
+    def vuln_host_location_without_redirect():
+        response = Response("location metadata only", status=200, mimetype="text/html")
+        response.headers["Location"] = f"https://{request.host}/reset"
+        return response
 
     @app.route("/safe/host")
     def safe_host():

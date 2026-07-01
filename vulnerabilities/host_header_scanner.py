@@ -1,7 +1,7 @@
 from services.scan_runtime import RequestBudgetExceeded, ScanCancelled
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
-from vulnerabilities.common import body_text, error_result, make_result, safe_request, unique_token
+from vulnerabilities.common import body_text, error_result, make_result, safe_request, sanitize_url, unique_token
 
 meta = {
     "name": "Host Header Injection",
@@ -22,8 +22,14 @@ def scan(url):
             response = safe_request("GET", url, headers={header_name: marker}, allow_redirects=False)
             body = body_text(response)
             location = response.headers.get("Location", "")
+            resolved_location = urljoin(response.url, location) if location else ""
+            location_host = (urlparse(resolved_location).hostname or "").lower()
             reflected_body = marker.lower() in body.lower()
             reflected_location = marker.lower() in location.lower()
+            external_redirect_confirmed = (
+                response.status_code in {301, 302, 303, 307, 308}
+                and location_host == marker.lower()
+            )
             if reflected_body or reflected_location:
                 reflection_context = []
                 if reflected_location:
@@ -37,18 +43,25 @@ def scan(url):
                     "reflected_in_body": reflected_body,
                     "reflected_in_location": reflected_location,
                     "reflection_context": reflection_context,
-                    "location": location,
+                    "location": sanitize_url(location),
+                    "resolved_location": sanitize_url(resolved_location),
+                    "external_redirect_confirmed": external_redirect_confirmed,
+                    "final_decision": "confirmed_external_3xx_redirect" if external_redirect_confirmed else "reflection_requires_manual_validation",
                 })
 
         if observations:
-            high_confidence = any(item["reflected_in_location"] for item in observations)
+            high_confidence = any(item["external_redirect_confirmed"] for item in observations)
             return make_result(
                 True,
                 "An attacker-controlled host value was used in a redirect." if high_confidence else "An attacker-controlled host value was reflected in response content; exploitability requires manual validation.",
                 severity="High" if high_confidence else "Medium",
                 confidence="High" if high_confidence else "Low",
                 status="confirmed" if high_confidence else "potential",
-                evidence={"tested_host": marker, "observations": observations},
+                evidence={
+                    "tested_host": marker,
+                    "observations": observations,
+                    "final_decision": "confirmed_external_3xx_redirect" if high_confidence else "potential_host_reflection",
+                },
                 recommendation="Validate Host headers against an allowlist and configure trusted proxy headers explicitly.",
                 endpoint=url,
                 cwe="CWE-644",
@@ -60,7 +73,12 @@ def scan(url):
             "No attacker-controlled host reflection was observed.",
             severity="Info",
             confidence="High",
-            evidence={"tested_host": marker, "target_host": urlparse(url).hostname, "observations": observations},
+            evidence={
+                "tested_host": marker,
+                "target_host": urlparse(url).hostname,
+                "observations": observations,
+                "final_decision": "no_host_header_influence_observed",
+            },
             endpoint=url,
             cwe="CWE-644",
             requests_made=requests_made,

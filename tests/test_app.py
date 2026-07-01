@@ -56,6 +56,70 @@ def test_scan_requires_csrf_authorization_and_blocks_private_targets(tmp_path, m
     assert "Private" in response.get_json()["error"]
 
 
+def test_scanner_input_urls_are_limited_to_target_origin_and_trusted_oast(tmp_path, monkeypatch, lab_server):
+    app_module = _load_app(tmp_path, monkeypatch)
+    monkeypatch.setenv("ALLOW_PRIVATE_TARGETS", "true")
+    monkeypatch.setenv("OAST_ALLOW_PRIVATE_CALLBACKS", "true")
+    monkeypatch.setenv("OAST_PUBLIC_BASE_URL", lab_server)
+    client, csrf, _ = _register_and_login(app_module, "scanner-scope@example.com")
+    submitted = []
+    monkeypatch.setattr(app_module, "register_scan_runtime", lambda runtime: None)
+    monkeypatch.setattr(app_module, "submit_scan_job", lambda *args, **kwargs: submitted.append(args))
+
+    unrelated = lab_server.replace("127.0.0.1", "localhost") + "/safe/graphql"
+    rejected = client.post(
+        "/scan-live",
+        json={
+            "url": lab_server + "/safe/headers",
+            "vulns": ["graphql_scanner"],
+            "authorized": True,
+            "scanner_inputs": {"graphql_scanner": {"endpoint": unrelated}},
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 400
+    assert "same origin" in rejected.get_json()["error"].lower()
+    assert not submitted
+
+    allowed = client.post(
+        "/scan-live",
+        json={
+            "url": lab_server + "/safe/headers",
+            "vulns": ["graphql_scanner"],
+            "authorized": True,
+            "scanner_inputs": {"graphql_scanner": {"endpoint": "/safe/graphql"}},
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert allowed.status_code == 202, allowed.get_data(as_text=True)
+    assert submitted[-1][6]["scanner_inputs"]["graphql_scanner"]["endpoint"] == lab_server + "/safe/graphql"
+
+    trusted = client.post(
+        "/scan-live",
+        json={
+            "url": lab_server + "/safe/ssrf",
+            "vulns": ["ssrf_scanner"],
+            "authorized": True,
+            "scanner_inputs": {"ssrf_scanner": {"param": "url", "callback_base_url": lab_server}},
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert trusted.status_code == 202, trusted.get_data(as_text=True)
+
+    untrusted = client.post(
+        "/scan-live",
+        json={
+            "url": lab_server + "/safe/ssrf",
+            "vulns": ["ssrf_scanner"],
+            "authorized": True,
+            "scanner_inputs": {"ssrf_scanner": {"param": "url", "callback_base_url": lab_server.replace("127.0.0.1", "localhost")}},
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert untrusted.status_code == 400
+    assert "trusted oast" in untrusted.get_json()["error"].lower()
+
+
 def test_local_analysis_is_bounded_and_escapes_third_party_dependency(tmp_path, monkeypatch):
     app_module = _load_app(tmp_path, monkeypatch)
     client = app_module.app.test_client()

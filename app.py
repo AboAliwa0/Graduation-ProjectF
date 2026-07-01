@@ -27,10 +27,16 @@ from services.auth_profiles import AuthProfileError, parse_auth_profiles, parse_
 from services.distributed_queue import QueueConfigurationError, get_queue, redis_backend_enabled
 from main import load_scanners
 from routes_ai import ai_bp
-from services.oast import is_registered, record_hit
+from services.oast import OASTConfigurationError, is_registered, record_hit, validate_callback_base_url
 from services.scan_manager import active_count_for_user, cancel as cancel_managed_scan, register as register_scan_runtime, submit as submit_scan_job
 from services.scan_runtime import RequestBudgetExceeded, ScanCancelled, ScanRuntime, activate_runtime
-from vulnerabilities.common import UnsafeTargetError, env_bool as scanner_env_bool, validate_target_url
+from vulnerabilities.common import (
+    UnsafeTargetError,
+    env_bool as scanner_env_bool,
+    resolve_same_origin_url,
+    sanitize_url,
+    validate_target_url,
+)
 
 load_dotenv()
 
@@ -622,6 +628,96 @@ def scanner_kwargs(scanner, scanner_id: str, payload_data: dict) -> dict:
         elif param.default is inspect.Parameter.empty:
             kwargs[name] = ""
     return kwargs
+
+
+EXTRA_SCANNER_URL_INPUTS = {
+    "file_upload": {"public_url_template"},
+}
+MULTI_SCANNER_URL_INPUTS = {
+    "authorization_matrix_scanner": {"endpoints"},
+}
+OAST_SCANNER_URL_INPUTS = {
+    ("ssrf_scanner", "callback_base_url"),
+    ("blind_xss", "callback_base_url"),
+}
+
+
+def _normalize_grpc_target(main_target: str, value: str) -> str:
+    raw = str(value or "").strip()
+    parsed = urlparse("//" + raw)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("gRPC target contains an invalid port.") from exc
+    if not parsed.hostname or port is None:
+        raise ValueError("gRPC target must use host:port.")
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials embedded in gRPC targets are not allowed.")
+    if parsed.hostname.lower() != (urlparse(main_target).hostname or "").lower():
+        raise ValueError("gRPC target must use the same hostname as the authorized target.")
+    return raw
+
+
+def normalize_scanner_inputs(main_target: str, selected: list[str], configured) -> dict:
+    if configured in (None, ""):
+        return {}
+    if not isinstance(configured, dict):
+        raise ValueError("scanner_inputs must be a JSON object.")
+
+    specs = {item["id"]: item for item in load_scanner_specs()}
+    normalized: dict[str, dict] = {}
+    for scanner_id in selected:
+        raw = configured.get(scanner_id, {})
+        if raw in (None, ""):
+            continue
+        if not isinstance(raw, dict):
+            raise ValueError(f"Inputs for {scanner_id} must be a JSON object.")
+        values = dict(raw)
+        url_fields = {
+            item.get("name")
+            for item in specs.get(scanner_id, {}).get("inputs", [])
+            if item.get("type") == "url" and item.get("name")
+        }
+        url_fields.update(EXTRA_SCANNER_URL_INPUTS.get(scanner_id, set()))
+
+        for field_name in url_fields:
+            raw_value = values.get(field_name)
+            if raw_value in (None, ""):
+                continue
+            if not isinstance(raw_value, str):
+                raise ValueError(f"{scanner_id}.{field_name} must be a URL string.")
+            if (scanner_id, field_name) in OAST_SCANNER_URL_INPUTS:
+                trusted_raw = os.getenv("OAST_PUBLIC_BASE_URL", "").strip()
+                if not trusted_raw:
+                    raise ValueError("OAST_PUBLIC_BASE_URL must be configured before supplying a callback URL.")
+                try:
+                    trusted = validate_callback_base_url(trusted_raw)
+                    candidate = validate_callback_base_url(raw_value)
+                except OASTConfigurationError as exc:
+                    raise ValueError(f"Invalid OAST callback URL: {exc}") from exc
+                if candidate.rstrip("/") != trusted.rstrip("/"):
+                    raise ValueError("Callback URLs must exactly match the configured trusted OAST_PUBLIC_BASE_URL.")
+                values[field_name] = candidate
+            else:
+                values[field_name] = resolve_same_origin_url(
+                    main_target,
+                    raw_value,
+                    websocket=scanner_id == "websocket_scanner" and field_name == "endpoint",
+                )
+
+        for field_name in MULTI_SCANNER_URL_INPUTS.get(scanner_id, set()):
+            raw_value = values.get(field_name)
+            if raw_value in (None, ""):
+                continue
+            if not isinstance(raw_value, str):
+                raise ValueError(f"{scanner_id}.{field_name} must contain URL paths.")
+            endpoints = [item.strip() for item in re.split(r"[\r\n,]+", raw_value) if item.strip()]
+            values[field_name] = "\n".join(resolve_same_origin_url(main_target, item) for item in endpoints)
+
+        if scanner_id == "grpc_scanner" and values.get("target") not in (None, ""):
+            values["target"] = _normalize_grpc_target(main_target, values["target"])
+        normalized[scanner_id] = values
+    return normalized
 
 
 def create_scan_record(
@@ -1379,6 +1475,10 @@ def scan_live():
     selected = data.get("vulns", [])
     if isinstance(selected, str):
         selected = [selected]
+    valid_ids = {item["id"] for item in load_scanner_specs()}
+    selected = list(dict.fromkeys(scanner_key(item) for item in selected if scanner_key(item) in valid_ids))
+    if not selected:
+        return jsonify({"error": "Select at least one valid scanner."}), 400
     if data.get("authorized") is not True:
         return jsonify({"error": "You must confirm that you own the target or have written authorization to test it."}), 400
     try:
@@ -1392,6 +1492,7 @@ def scan_live():
         cookies = parse_string_map(data.get("cookies"), label="Cookies")
         auth_profiles = parse_auth_profiles(data.get("auth_profiles"))
         browser_storage_state = parse_browser_storage_state(data.get("browser_storage_state"))
+        data["scanner_inputs"] = normalize_scanner_inputs(url, selected, data.get("scanner_inputs"))
         request_budget = int(data.get("request_budget", DEFAULT_REQUEST_BUDGET))
         if not 10 <= request_budget <= MAX_REQUEST_BUDGET:
             raise ValueError(f"Request budget must be between 10 and {MAX_REQUEST_BUDGET}.")
@@ -1401,15 +1502,11 @@ def scan_live():
     except (UnsafeTargetError, AuthProfileError, ValueError, TypeError) as exc:
         return jsonify({"error": str(exc)}), 400
 
-    valid_ids = {item["id"] for item in load_scanner_specs()}
-    selected = list(dict.fromkeys(scanner_key(item) for item in selected if scanner_key(item) in valid_ids))
-    if not selected:
-        return jsonify({"error": "Select at least one valid scanner."}), 400
     if active_scan_count(int(user_id)) >= MAX_ACTIVE_SCANS_PER_USER:
         return jsonify({"error": "Maximum concurrent scan limit reached."}), 429
 
     mode = str(data.get("scan_mode", "standard"))[:30]
-    scan_id = create_scan_record(int(user_id), url, selected, scan_mode=mode, request_budget=request_budget)
+    scan_id = create_scan_record(int(user_id), sanitize_url(url), selected, scan_mode=mode, request_budget=request_budget)
     runtime_ephemeral = {
         "browser_storage_state": browser_storage_state,
         "auth_profiles": [profile.to_runtime_dict() for profile in auth_profiles],
@@ -1457,7 +1554,7 @@ def scan_live():
         submit_scan_job(scan_id, run_scan, scan_id, int(user_id), url, selected, safe_payload, runtime)
     audit(
         "scan.started", user_id=int(user_id), target_type="scan", target_id=scan_id,
-        details={"target": url, "scanners": selected, "request_budget": request_budget, "scan_mode": mode, "auth_profile_summaries": [profile.safe_summary() for profile in auth_profiles], "browser_storage_state": bool(browser_storage_state)},
+        details={"target": sanitize_url(url), "scanners": selected, "request_budget": request_budget, "scan_mode": mode, "auth_profile_summaries": [profile.safe_summary() for profile in auth_profiles], "browser_storage_state": bool(browser_storage_state)},
         ip_address=client_ip(),
     )
     return jsonify({"message": "Scan queued", "scan_id": scan_id, "status": "queued"}), 202

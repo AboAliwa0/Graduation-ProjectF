@@ -20,10 +20,77 @@ DEFAULT_TIMEOUT = float(os.getenv("SCANNER_TIMEOUT", "8"))
 MAX_REDIRECTS = int(os.getenv("SCANNER_MAX_REDIRECTS", "3"))
 MAX_RESPONSE_BYTES = int(os.getenv("SCANNER_MAX_RESPONSE_BYTES", str(2 * 1024 * 1024)))
 USER_AGENT = os.getenv("SCANNER_USER_AGENT", "CyberScan/5.0 Authorized-Security-Assessment")
+SENSITIVE_URL_PARAMETERS = {
+    "token",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "code",
+    "session",
+    "sid",
+    "auth",
+    "key",
+    "api_key",
+    "apikey",
+    "password",
+    "secret",
+}
+URL_FIELD_RE = re.compile(
+    r"(^|_)(url|urls|uri|uris|endpoint|endpoints|location|locations|action|actions|target|targets|"
+    r"redirect|redirects|callback|callbacks|href|src|server|servers|page|pages|pages_visited)$",
+    re.I,
+)
 
 
 class UnsafeTargetError(ValueError):
     pass
+
+
+def _sensitive_url_parameter(name: str) -> bool:
+    return str(name or "").strip().lower().replace("-", "_") in SENSITIVE_URL_PARAMETERS
+
+
+def _sanitize_url_component(value: str) -> str:
+    pairs = parse_qsl(value, keep_blank_values=True)
+    if not pairs:
+        return value
+    return urlencode(
+        [(key, "redacted" if _sensitive_url_parameter(key) else item) for key, item in pairs],
+        doseq=True,
+    )
+
+
+def sanitize_url(value: Any) -> str:
+    text = str(value or "")
+    try:
+        parsed = urlparse(text)
+        netloc = parsed.netloc
+        if parsed.username or parsed.password:
+            host = parsed.hostname or ""
+            if ":" in host and not host.startswith("["):
+                host = f"[{host}]"
+            netloc = f"{host}:{parsed.port}" if parsed.port is not None else host
+        return urlunparse(
+            parsed._replace(
+                netloc=netloc,
+                query=_sanitize_url_component(parsed.query),
+                fragment=_sanitize_url_component(parsed.fragment),
+            )
+        )
+    except Exception:
+        return text
+
+
+def sanitize_url_fields(value: Any, *, key: str = "") -> Any:
+    if isinstance(value, dict):
+        return {str(item_key): sanitize_url_fields(item, key=str(item_key)) for item_key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_url_fields(item, key=key) for item in value]
+    if isinstance(value, tuple):
+        return tuple(sanitize_url_fields(item, key=key) for item in value)
+    if isinstance(value, str) and URL_FIELD_RE.search(key):
+        return sanitize_url(value)
+    return value
 
 
 @dataclass(slots=True)
@@ -68,9 +135,9 @@ def make_result(
         severity=severity,
         confidence=confidence,
         status=status,
-        evidence=evidence or {},
+        evidence=sanitize_url_fields(evidence or {}),
         recommendation=recommendation,
-        endpoint=endpoint,
+        endpoint=sanitize_url(endpoint),
         parameter=parameter,
         cwe=cwe,
         cvss=cvss,
@@ -160,7 +227,38 @@ def validate_target_url(url: str, *, allow_private: bool | None = None) -> str:
 
 def _origin(url: str) -> tuple[str, str, int | None]:
     parsed = urlparse(url)
-    return parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port
+    scheme = parsed.scheme.lower()
+    normalized_scheme = {"ws": "http", "wss": "https"}.get(scheme, scheme)
+    port = parsed.port
+    if port is None:
+        port = 443 if normalized_scheme == "https" else 80 if normalized_scheme == "http" else None
+    return normalized_scheme, (parsed.hostname or "").lower(), port
+
+
+def resolve_same_origin_url(base_url: str, value: str, *, websocket: bool = False) -> str:
+    base = validate_target_url(base_url)
+    candidate = str(value or "").strip()
+    if not candidate:
+        return ""
+
+    if websocket:
+        base_parsed = urlparse(base)
+        websocket_base = urlunparse(
+            base_parsed._replace(scheme="wss" if base_parsed.scheme.lower() == "https" else "ws")
+        )
+        resolved = urljoin(websocket_base.rstrip("/") + "/", candidate)
+        parsed = urlparse(resolved)
+        if parsed.scheme.lower() not in {"ws", "wss"}:
+            raise UnsafeTargetError("WebSocket endpoints must use ws:// or wss://.")
+        policy_url = urlunparse(parsed._replace(scheme="https" if parsed.scheme.lower() == "wss" else "http"))
+        validate_target_url(policy_url)
+    else:
+        resolved = urljoin(base.rstrip("/") + "/", candidate)
+        validate_target_url(resolved)
+
+    if _origin(resolved) != _origin(base):
+        raise UnsafeTargetError("Scanner endpoint URLs must use the same origin as the authorized target.")
+    return resolved
 
 
 def _merge_headers(runtime_headers: dict[str, str], supplied: dict[str, Any]) -> dict[str, str]:
@@ -238,12 +336,12 @@ def safe_request(
             if hop >= max_redirects:
                 raise requests.TooManyRedirects(f"More than {max_redirects} redirects")
             next_url = urljoin(current, location)
-            validate_target_url(next_url, allow_private=allow_private)
-
-            # Never forward ambient credentials to a different origin.
             if _origin(next_url) != original_origin:
-                for sensitive in ("Authorization", "Proxy-Authorization", "Cookie"):
-                    headers.pop(sensitive, None)
+                # Scanner redirects stay inside the authorized origin. Returning the
+                # original 3xx response avoids cross-origin requests and prevents
+                # domainless runtime cookies from being attached by requests.
+                return response
+            validate_target_url(next_url, allow_private=allow_private)
 
             current = next_url
             if response.status_code == 303 or (response.status_code in {301, 302} and method.upper() == "POST"):
