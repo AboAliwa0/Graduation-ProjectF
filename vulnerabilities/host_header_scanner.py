@@ -18,18 +18,25 @@ def scan(url):
     requests_made = 0
     try:
         for header_name in ("Host", "X-Forwarded-Host"):
-            response = safe_request("GET", url, headers={header_name: marker}, allow_redirects=False)
             requests_made += 1
+            response = safe_request("GET", url, headers={header_name: marker}, allow_redirects=False)
             body = body_text(response)
             location = response.headers.get("Location", "")
             reflected_body = marker.lower() in body.lower()
             reflected_location = marker.lower() in location.lower()
             if reflected_body or reflected_location:
+                reflection_context = []
+                if reflected_location:
+                    reflection_context.append("location")
+                if reflected_body:
+                    reflection_context.append("body")
                 observations.append({
                     "header": header_name,
+                    "tested_host": marker,
                     "status_code": response.status_code,
                     "reflected_in_body": reflected_body,
                     "reflected_in_location": reflected_location,
+                    "reflection_context": reflection_context,
                     "location": location,
                 })
 
@@ -41,7 +48,7 @@ def scan(url):
                 severity="High" if high_confidence else "Medium",
                 confidence="High" if high_confidence else "Low",
                 status="confirmed" if high_confidence else "potential",
-                evidence={"marker": marker, "observations": observations},
+                evidence={"tested_host": marker, "observations": observations},
                 recommendation="Validate Host headers against an allowlist and configure trusted proxy headers explicitly.",
                 endpoint=url,
                 cwe="CWE-644",
@@ -53,7 +60,7 @@ def scan(url):
             "No attacker-controlled host reflection was observed.",
             severity="Info",
             confidence="High",
-            evidence={"marker": marker, "target_host": urlparse(url).hostname},
+            evidence={"tested_host": marker, "target_host": urlparse(url).hostname, "observations": observations},
             endpoint=url,
             cwe="CWE-644",
             requests_made=requests_made,

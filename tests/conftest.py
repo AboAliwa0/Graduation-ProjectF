@@ -22,7 +22,7 @@ def lab_server():
     app = Flask(__name__)
     uploaded = {}
     stored = {"raw": [], "safe": []}
-    counters = {"auth_safe": 0, "auth_429": 0, "auth_retry": 0, "rate_safe": 0}
+    counters = {"auth_safe": 0, "auth_429": 0, "auth_retry": 0, "rate_safe": 0, "rate_delay": 0}
 
     @app.after_request
     def lab_headers(response):
@@ -112,6 +112,10 @@ def lab_server():
     def no_directory_listing():
         return Response("not found", status=404, mimetype="text/plain")
 
+    @app.route("/lab-custom/uploads/")
+    def custom_directory_page():
+        return Response('<title>Uploads</title><a href="a.txt">a</a><a href="b.txt">b</a>', mimetype="text/html")
+
     @app.route("/vuln/info")
     def vuln_info():
         return Response("Traceback (most recent call last):\n  File app.py\nValueError", mimetype="text/plain")
@@ -135,6 +139,10 @@ def lab_server():
     @app.route("/vuln/host")
     def vuln_host():
         return Response(f"reset link: https://{request.host}/reset", mimetype="text/html")
+
+    @app.route("/vuln/host-redirect")
+    def vuln_host_redirect():
+        return redirect(f"https://{request.host}/reset", 302)
 
     @app.route("/safe/host")
     def safe_host():
@@ -284,6 +292,13 @@ def lab_server():
             response = Response("Too many requests", status=429, mimetype="text/plain")
             response.headers["Retry-After"] = "60"
             return response
+        return Response("ok", mimetype="text/plain")
+
+    @app.route("/safe/rate-delay")
+    def safe_rate_delay():
+        import time
+        counters["rate_delay"] += 1
+        time.sleep(counters["rate_delay"] * 0.12)
         return Response("ok", mimetype="text/plain")
 
     @app.route("/vuln/stored", methods=["POST"])

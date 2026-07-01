@@ -14,9 +14,11 @@ inputs = []
 
 def scan(url):
     observations = []
+    requests_made = 0
     try:
         for index in range(5):
             started = time.perf_counter()
+            requests_made += 1
             response = safe_request("GET", url, allow_redirects=False)
             observations.append({
                 "attempt": index + 1,
@@ -29,16 +31,32 @@ def scan(url):
             time.sleep(0.08)
 
         protected = any(item["status"] == 429 or item["retry_after"] for item in observations)
-        if protected:
+        progressive_delay = False
+        if len(observations) >= 3:
+            elapsed = [item["elapsed"] for item in observations]
+            progressive_delay = any(
+                window[0] < window[1] < window[2] and window[2] - window[0] >= 0.12
+                for window in zip(elapsed, elapsed[1:], elapsed[2:])
+            )
+        evidence = {
+            "attempts": observations,
+            "status_codes": [item["status"] for item in observations],
+            "timings": [item["elapsed"] for item in observations],
+            "retry_after": [item["retry_after"] for item in observations if item["retry_after"]],
+            "attempt_count": len(observations),
+            "progressive_delay_observed": progressive_delay,
+            "conclusion": "explicit_or_delay_throttling_observed" if protected or progressive_delay else "no_explicit_throttling_observed",
+        }
+        if protected or progressive_delay:
             return make_result(
                 False,
                 "Explicit rate-limit behavior was observed.",
                 severity="Info",
                 confidence="High",
-                evidence={"attempts": observations},
+                evidence=evidence,
                 endpoint=url,
                 cwe="CWE-770",
-                requests_made=len(observations),
+                requests_made=requests_made,
             )
         return make_result(
             True,
@@ -46,14 +64,14 @@ def scan(url):
             severity="Low",
             confidence="Low",
             status="potential",
-            evidence={"attempts": observations},
+            evidence=evidence,
             recommendation="Apply endpoint-specific limits to expensive or sensitive operations and monitor abusive patterns.",
             endpoint=url,
             cwe="CWE-770",
             cvss=3.1,
-            requests_made=len(observations),
+            requests_made=requests_made,
         )
     except (ScanCancelled, RequestBudgetExceeded):
         raise
     except Exception as exc:
-        return error_result(f"Rate-limit observation failed: {exc}", endpoint=url, requests_made=len(observations))
+        return error_result(f"Rate-limit observation failed: {exc}", endpoint=url, requests_made=requests_made)

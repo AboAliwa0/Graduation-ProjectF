@@ -102,12 +102,42 @@ def test_cors_transport_error_counts_attempt_and_runtime_stops_propagate(monkeyp
 def test_csrf_indicator_and_negative(lab_server):
     result = csrf_scan.scan(lab_server + "/vuln/csrf")
     assert result["vulnerable"] is True and result["status"] == "potential", result
-    assert_not_vulnerable(csrf_scan.scan(lab_server + "/safe/csrf"))
+    assert result["evidence"]["form_count"] == 1
+    assert result["evidence"]["risky_form_count"] == 1
+    assert result["evidence"]["methods"] == ["POST"]
+    assert result["evidence"]["actions"]
+
+    safe = csrf_scan.scan(lab_server + "/safe/csrf")
+    assert_not_vulnerable(safe)
+    assert safe["evidence"]["form_count"] == 2
+    assert safe["evidence"]["risky_form_count"] == 1
+    assert safe["evidence"]["detected_csrf_controls"]
+
+    no_forms = csrf_scan.scan(lab_server + "/safe/headers")
+    assert_not_vulnerable(no_forms)
+    assert no_forms["evidence"]["form_count"] == 0
+
+    non_html = csrf_scan.scan(lab_server + "/api/json")
+    assert_not_vulnerable(non_html)
+    assert non_html["evidence"]["content_type"].startswith("application/json")
 
 
 def test_directory_listing_positive_and_negative(lab_server):
-    assert_confirmed(dir_scan.scan(lab_server + "/lab/", paths="uploads/"))
-    assert_not_vulnerable(dir_scan.scan(lab_server + "/lab-safe/", paths="uploads/"))
+    confirmed = dir_scan.scan(lab_server + "/lab/", paths="uploads/")
+    assert_confirmed(confirmed)
+    listing = confirmed["evidence"]["listings"][0]
+    assert listing["path"] == "uploads/"
+    assert listing["status_code"] == 200
+    assert listing["signature"]
+    assert listing["link_count"] >= 2
+
+    safe_404 = dir_scan.scan(lab_server + "/lab-safe/", paths="uploads/")
+    assert_not_vulnerable(safe_404)
+    assert safe_404["evidence"]["checked_paths"][0]["status_code"] == 404
+
+    custom = dir_scan.scan(lab_server + "/lab-custom/", paths="uploads/")
+    assert_not_vulnerable(custom)
+    assert custom["evidence"]["checked_paths"][0]["signature"] == ""
 
 
 def test_information_disclosure_positive_and_header_only_negative(lab_server):
@@ -122,14 +152,32 @@ def test_graphql_indicator_and_negative(lab_server):
 
 
 def test_open_redirect_positive_and_negative(lab_server):
-    assert_confirmed(open_redirect_scanner.scan(lab_server + "/vuln/redirect", param="next"))
-    assert_not_vulnerable(open_redirect_scanner.scan(lab_server + "/safe/redirect", param="next"))
+    confirmed = open_redirect_scanner.scan(lab_server + "/vuln/redirect", param="next")
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["parameter"] == "next"
+    assert confirmed["evidence"]["payload"].startswith("https://redirect-")
+    assert confirmed["evidence"]["final_decision"] == "external_redirect_confirmed"
+
+    safe = open_redirect_scanner.scan(lab_server + "/safe/redirect", param="next")
+    assert_not_vulnerable(safe)
+    assert safe["evidence"]["final_decision"] == "no_external_3xx_redirect"
+
+    missing = open_redirect_scanner.scan(lab_server + "/vuln/redirect")
+    assert missing["status"] == "inconclusive"
+    assert missing["requests_made"] == 0
+    assert missing["evidence"]["reason"] == "missing_required_parameter"
 
 
 def test_host_header_body_reflection_is_potential_and_safe_is_negative(lab_server):
     result = host_header_scanner.scan(lab_server + "/vuln/host")
     assert result["vulnerable"] is True and result["status"] == "potential", result
+    assert result["evidence"]["tested_host"].endswith(".invalid")
+    assert "body" in result["evidence"]["observations"][0]["reflection_context"]
     assert_not_vulnerable(host_header_scanner.scan(lab_server + "/safe/host"))
+
+    redirect_result = host_header_scanner.scan(lab_server + "/vuln/host-redirect")
+    assert_confirmed(redirect_result)
+    assert any("location" in item["reflection_context"] for item in redirect_result["evidence"]["observations"])
 
 
 def test_html_injection_positive_and_non_executable_contexts(lab_server):
@@ -284,7 +332,57 @@ def test_login_abuse_transport_error_counts_attempt(monkeypatch, lab_server):
 def test_generic_rate_limit_observation(lab_server):
     vulnerable = rate_limit.scan(lab_server + "/vuln/rate")
     assert vulnerable["vulnerable"] is True and vulnerable["status"] == "potential", vulnerable
-    assert_not_vulnerable(rate_limit.scan(lab_server + "/safe/rate"))
+    assert vulnerable["confidence"] == "Low"
+    assert vulnerable["evidence"]["attempt_count"] == 5
+    assert vulnerable["evidence"]["conclusion"] == "no_explicit_throttling_observed"
+
+    limited = rate_limit.scan(lab_server + "/safe/rate")
+    assert_not_vulnerable(limited)
+    assert limited["evidence"]["retry_after"]
+
+    delayed = rate_limit.scan(lab_server + "/safe/rate-delay")
+    assert_not_vulnerable(delayed)
+    assert delayed["evidence"]["progressive_delay_observed"] is True
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (host_header_scanner, {}),
+        (csrf_scan, {}),
+        (dir_scan, {"paths": "uploads/"}),
+        (open_redirect_scanner, {"param": "next"}),
+        (rate_limit, {}),
+    ],
+)
+def test_phase1_scanners_transport_error_counts_attempt(monkeypatch, lab_server, module, kwargs):
+    def fail_request(*args, **request_kwargs):
+        raise OSError("transport failed")
+
+    monkeypatch.setattr(module, "safe_request", fail_request)
+    result = module.scan(lab_server, **kwargs)
+    assert result["status"] == "error"
+    assert result["requests_made"] == 1
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (host_header_scanner, {}),
+        (csrf_scan, {}),
+        (dir_scan, {"paths": "uploads/"}),
+        (open_redirect_scanner, {"param": "next"}),
+        (rate_limit, {}),
+    ],
+)
+@pytest.mark.parametrize("exception", [ScanCancelled("cancelled"), RequestBudgetExceeded("budget")])
+def test_phase1_scanners_propagate_runtime_stop_exceptions(monkeypatch, lab_server, module, kwargs, exception):
+    def stop_request(*args, **request_kwargs):
+        raise exception
+
+    monkeypatch.setattr(module, "safe_request", stop_request)
+    with pytest.raises(type(exception)):
+        module.scan(lab_server, **kwargs)
 
 
 def test_stored_xss_positive_and_negative(lab_server):
