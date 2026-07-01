@@ -17,14 +17,33 @@ inputs = [
 
 
 def scan(url, target="", tls=True):
+    target = str(target or "").strip()
     if not target:
-        return make_result(False, "No gRPC target was supplied.", severity="Info", confidence="High", status="inconclusive", endpoint=url)
+        return make_result(
+            False,
+            "No gRPC target was supplied.",
+            severity="Info",
+            confidence="High",
+            status="inconclusive",
+            evidence={"target": "", "reflection_status": "not_tested", "reason": "missing_target"},
+            endpoint=url,
+            requests_made=0,
+        )
     runtime = current_runtime()
+    started = runtime.request_count if runtime is not None else 0
     try:
         use_tls = not (tls is False or str(tls).lower() in {"0", "false", "no", "off"})
         inventory = inspect_grpc_reflection(target, tls=use_tls, metadata=(runtime.default_headers if runtime else {}))
+        descriptor_requests = len([service for service in inventory.services[:100] if not service.startswith("grpc.reflection.")])
+        requests_made = max(0, runtime.request_count - started) if runtime is not None else 1 + descriptor_requests
+        evidence = {
+            **inventory.to_dict(),
+            "reflection_status": "available" if inventory.reflection_available else "not_available",
+            "service_count": len(inventory.services),
+            "descriptor_file_count": len(inventory.descriptor_files),
+        }
         if runtime is not None:
-            runtime.artifacts["grpc"] = inventory.to_dict()
+            runtime.artifacts["grpc"] = evidence
         if inventory.reflection_available:
             return make_result(
                 True,
@@ -32,16 +51,35 @@ def scan(url, target="", tls=True):
                 severity="Low",
                 confidence="High",
                 status="potential",
-                evidence=inventory.to_dict(),
+                evidence=evidence,
                 recommendation="Restrict reflection to trusted administrative networks or authenticated development environments when public schema discovery is unnecessary.",
                 endpoint=target,
                 cwe="CWE-200",
                 cvss=3.1,
+                requests_made=requests_made,
             )
-        return make_result(False, "gRPC reflection was not confirmed.", severity="Info", confidence="High", evidence=inventory.to_dict(), endpoint=target)
+        return make_result(
+            False,
+            "gRPC reflection was not confirmed.",
+            severity="Info",
+            confidence="High",
+            evidence=evidence,
+            endpoint=target,
+            requests_made=requests_made,
+        )
     except (ScanCancelled, RequestBudgetExceeded):
         raise
     except GrpcAssessmentError as exc:
-        return make_result(False, str(exc), severity="Info", confidence="High", status="inconclusive", endpoint=target)
+        return make_result(
+            False,
+            str(exc),
+            severity="Info",
+            confidence="High",
+            status="inconclusive",
+            evidence={"target": target, "reflection_status": "not_tested"},
+            endpoint=target,
+            requests_made=max(0, runtime.request_count - started) if runtime is not None else 0,
+        )
     except Exception as exc:
-        return error_result(f"gRPC reflection assessment failed: {exc}", endpoint=target)
+        requests_made = max(0, runtime.request_count - started) if runtime is not None else 0
+        return error_result(f"gRPC reflection assessment failed: {exc}", endpoint=target, requests_made=requests_made)

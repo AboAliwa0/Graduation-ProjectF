@@ -4,12 +4,35 @@ from dataclasses import dataclass, asdict, field
 from typing import Any
 from urllib.parse import urlparse
 
-from services.scan_runtime import current_runtime
+from services.scan_runtime import RequestBudgetExceeded, ScanCancelled, current_runtime
 from vulnerabilities.common import validate_target_url
 
 
 class GrpcAssessmentError(RuntimeError):
     pass
+
+
+SENSITIVE_METADATA_KEYS = {
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "apikey",
+}
+
+
+def _safe_metadata(metadata: dict[str, str] | None) -> tuple[tuple[str, str], ...]:
+    result = []
+    for key, value in (metadata or {}).items():
+        normalized = str(key).strip().lower()
+        if normalized in {"host", "content-length"}:
+            continue
+        if normalized in SENSITIVE_METADATA_KEYS or any(token in normalized for token in ("token", "secret", "password", "session")):
+            continue
+        result.append((str(key), str(value)))
+    return tuple(result)
 
 
 @dataclass(slots=True)
@@ -59,7 +82,7 @@ def inspect_grpc_reflection(
     runtime = current_runtime()
     if runtime is not None:
         runtime.before_request()
-    call_metadata = tuple((str(k), str(v)) for k, v in (metadata or {}).items() if str(k).lower() not in {"host", "content-length"})
+    call_metadata = _safe_metadata(metadata)
     if tls:
         channel = grpc.secure_channel(target, grpc.ssl_channel_credentials())
     else:
@@ -96,6 +119,8 @@ def inspect_grpc_reflection(
             except grpc.RpcError:
                 continue
         inventory.descriptor_files = sorted(files)[:500]
+    except (ScanCancelled, RequestBudgetExceeded):
+        raise
     except Exception as exc:
         inventory.error = str(exc)[:1000]
     finally:

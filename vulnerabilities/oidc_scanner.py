@@ -29,6 +29,7 @@ def _same_host(left: str, right: str) -> bool:
 
 def scan(url, discovery_url="/.well-known/openid-configuration"):
     runtime = current_runtime()
+    started = runtime.request_count if runtime is not None else 0
     target = urljoin(url.rstrip("/") + "/", discovery_url or "/.well-known/openid-configuration")
     try:
         target = validate_target_url(target)
@@ -40,8 +41,10 @@ def scan(url, discovery_url="/.well-known/openid-configuration"):
                 confidence="High",
                 status="inconclusive",
                 endpoint=target,
+                requests_made=0,
             )
         response = safe_request("GET", target, allow_redirects=True)
+        requests_made = max(0, runtime.request_count - started) if runtime is not None else 1
         if response.status_code >= 400:
             return make_result(
                 False,
@@ -51,13 +54,32 @@ def scan(url, discovery_url="/.well-known/openid-configuration"):
                 status="inconclusive",
                 evidence={"status_code": response.status_code},
                 endpoint=response.url,
+                requests_made=requests_made,
             )
         try:
             payload = response.json()
         except ValueError:
-            return make_result(False, "OIDC discovery response was not JSON.", severity="Info", confidence="High", status="inconclusive", endpoint=response.url)
+            return make_result(
+                False,
+                "OIDC discovery response was not JSON.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                evidence={"status_code": response.status_code, "content_type": response.headers.get("Content-Type", "")},
+                endpoint=response.url,
+                requests_made=requests_made,
+            )
         if not isinstance(payload, dict) or not payload.get("issuer"):
-            return make_result(False, "The document is not a valid OIDC discovery document.", severity="Info", confidence="High", status="inconclusive", endpoint=response.url)
+            return make_result(
+                False,
+                "The document is not a valid OIDC discovery document.",
+                severity="Info",
+                confidence="High",
+                status="inconclusive",
+                evidence={"status_code": response.status_code, "valid_discovery_document": False},
+                endpoint=response.url,
+                requests_made=requests_made,
+            )
 
         artifact = {
             "issuer": str(payload.get("issuer") or "")[:1000],
@@ -80,19 +102,30 @@ def scan(url, discovery_url="/.well-known/openid-configuration"):
         algorithms = {str(item).lower() for item in artifact["id_token_signing_alg_values_supported"]}
         response_types = {str(item).lower() for item in artifact["response_types_supported"]}
         pkce = {str(item).upper() for item in artifact["code_challenge_methods_supported"]}
+        security_evidence = {
+            **artifact,
+            "supported_flows": artifact["grant_types_supported"],
+            "algorithms": artifact["id_token_signing_alg_values_supported"],
+            "pkce_support": artifact["code_challenge_methods_supported"],
+            "redirect_security_metadata": {
+                "response_types_supported": artifact["response_types_supported"],
+                "all_advertised_endpoints_https": not insecure,
+            },
+        }
 
         if insecure:
             return make_result(
                 True,
                 "OIDC metadata advertises unencrypted HTTP endpoints.",
                 severity="High",
-                confidence="High",
-                status="confirmed",
-                evidence={**artifact, "insecure_endpoints": insecure},
+                confidence="Medium",
+                status="potential",
+                evidence={**security_evidence, "insecure_endpoints": insecure},
                 recommendation="Serve the issuer, authorization, token, userinfo, and JWKS endpoints exclusively over HTTPS.",
                 endpoint=response.url,
                 cwe="CWE-319",
                 cvss=7.4,
+                requests_made=requests_made,
             )
         if "none" in algorithms:
             return make_result(
@@ -101,11 +134,12 @@ def scan(url, discovery_url="/.well-known/openid-configuration"):
                 severity="High",
                 confidence="High",
                 status="potential",
-                evidence=artifact,
+                evidence=security_evidence,
                 recommendation="Remove the 'none' algorithm and enforce a vetted asymmetric signing algorithm with strict issuer, audience, expiry, and nonce validation.",
                 endpoint=response.url,
                 cwe="CWE-347",
                 cvss=7.5,
+                requests_made=requests_made,
             )
 
         warnings = []
@@ -120,22 +154,36 @@ def scan(url, discovery_url="/.well-known/openid-configuration"):
                 severity="Medium",
                 confidence="Medium",
                 status="potential",
-                evidence={**artifact, "warnings": warnings},
+                evidence={**security_evidence, "warnings": warnings},
                 recommendation="Prefer authorization code flow with PKCE S256, avoid legacy implicit response types, and validate redirect URIs exactly.",
                 endpoint=response.url,
                 cwe="CWE-346",
                 cvss=5.3,
+                requests_made=requests_made,
             )
         return make_result(
             False,
             "OIDC discovery metadata was inventoried without a high-confidence transport, unsigned-token, implicit-flow, or PKCE warning.",
             severity="Info",
             confidence="High",
-            evidence=artifact,
+            evidence=security_evidence,
             recommendation="Continue with authorized end-to-end tests for redirect URI validation, state, nonce, token audience, refresh rotation, revocation, and logout behavior.",
             endpoint=response.url,
+            requests_made=requests_made,
         )
     except (ScanCancelled, RequestBudgetExceeded):
         raise
+    except ValueError as exc:
+        return make_result(
+            False,
+            f"OIDC discovery URL is invalid: {exc}",
+            severity="Info",
+            confidence="High",
+            status="inconclusive",
+            evidence={"discovery_url": discovery_url or "/.well-known/openid-configuration"},
+            endpoint=target,
+            requests_made=0,
+        )
     except Exception as exc:
-        return error_result(f"OIDC discovery assessment failed: {exc}", endpoint=target)
+        requests_made = max(0, runtime.request_count - started) if runtime is not None else 1
+        return error_result(f"OIDC discovery assessment failed: {exc}", endpoint=target, requests_made=requests_made)

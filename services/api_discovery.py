@@ -13,6 +13,8 @@ from vulnerabilities.common import body_text, safe_request, validate_target_url
 SAFE_METHODS = {"get", "head", "options"}
 HTTP_METHODS = SAFE_METHODS | {"post", "put", "patch", "delete", "trace"}
 SENSITIVE_PATH_RE = re.compile(r"/(admin|internal|debug|management|private|users?|accounts?|billing|payments?)(/|$)", re.I)
+SENSITIVE_PARAMETER_RE = re.compile(r"(authorization|cookie|token|secret|password|api[-_]?key|credential|session)", re.I)
+SECRET_SAMPLE_RE = re.compile(r"(bearer\s+\S+|eyJ[a-zA-Z0-9_-]{10,}\.|(?:sk|ghp|glpat|xox[baprs])[-_][a-zA-Z0-9_-]{8,})", re.I)
 
 
 class OpenApiError(ValueError):
@@ -264,12 +266,21 @@ def fetch_openapi_inventory(document_url: str, *, target_url: str) -> OpenApiInv
     return parse_openapi_document(_load_document(body_text(response)), source_url=source, target_url=target)
 
 
+def _safe_probe_sample(parameter: ApiParameter) -> Any:
+    sample = parameter.sample
+    if SENSITIVE_PARAMETER_RE.search(parameter.name):
+        return "cyberscan-sample"
+    if isinstance(sample, str) and SECRET_SAMPLE_RE.search(sample):
+        return "cyberscan-sample"
+    return sample
+
+
 def _render_path(path: str, parameters: list[ApiParameter]) -> tuple[str, dict[str, Any], dict[str, str]]:
     rendered = path
     query: dict[str, Any] = {}
     headers: dict[str, str] = {}
     for param in parameters:
-        sample = param.sample
+        sample = _safe_probe_sample(param)
         if sample is None and not param.required:
             continue
         if sample is None:
