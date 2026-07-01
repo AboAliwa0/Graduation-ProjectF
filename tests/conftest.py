@@ -160,6 +160,10 @@ def lab_server():
     def safe_textarea_context():
         return Response(f"<textarea>{escape(request.args.get('q', ''))}</textarea>", mimetype="text/html")
 
+    @app.route("/safe/title")
+    def safe_title_context():
+        return Response(f"<title>{escape(request.args.get('q', ''))}</title>", mimetype="text/html")
+
     @app.route("/vuln/sqli")
     def vuln_sqli():
         value = request.args.get("id", "")

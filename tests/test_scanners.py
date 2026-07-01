@@ -181,26 +181,116 @@ def test_host_header_body_reflection_is_potential_and_safe_is_negative(lab_serve
 
 
 def test_html_injection_positive_and_non_executable_contexts(lab_server):
-    assert_confirmed(html_injection.scan(lab_server + "/vuln/html", param="q"))
-    assert_not_vulnerable(html_injection.scan(lab_server + "/safe/html", param="q"))
-    assert_not_vulnerable(html_injection.scan(lab_server + "/safe/textarea", param="q"))
+    confirmed = html_injection.scan(lab_server + "/vuln/html", param="q")
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["reflected_raw"] is True
+    assert confirmed["evidence"]["custom_element_parsed"] is True
+    assert confirmed["evidence"]["final_decision"] == "parsed_custom_element_confirmed"
+
+    encoded = html_injection.scan(lab_server + "/safe/html", param="q")
+    assert_not_vulnerable(encoded)
+    assert encoded["evidence"]["reflected_raw"] is False
+    assert encoded["evidence"]["reflected_decoded"] is True
+    assert encoded["evidence"]["custom_element_parsed"] is False
+
+    textarea = html_injection.scan(lab_server + "/safe/textarea", param="q")
+    assert_not_vulnerable(textarea)
+    assert textarea["evidence"]["custom_element_parsed"] is False
 
 
 def test_xss_positive_and_non_executable_contexts(lab_server):
-    assert_confirmed(xss.scan(lab_server + "/vuln/html", param="q"))
-    assert_not_vulnerable(xss.scan(lab_server + "/safe/html", param="q"))
-    assert_not_vulnerable(xss.scan(lab_server + "/safe/textarea", param="q"))
+    confirmed = xss.scan(lab_server + "/vuln/html", param="q")
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["final_decision"] == "executable_context_confirmed"
+    assert confirmed["evidence"]["detection"]["executable_context_confirmed"] is True
+
+    encoded = xss.scan(lab_server + "/safe/html", param="q")
+    assert_not_vulnerable(encoded)
+    assert encoded["evidence"]["final_decision"] in {"reflected_non_executable", "no_reflection_detected"}
+    assert any("final_decision" in item for item in encoded["evidence"]["attempts"])
+
+    textarea = xss.scan(lab_server + "/safe/textarea", param="q")
+    assert_not_vulnerable(textarea)
+    assert all(not item["executable_context_confirmed"] for item in textarea["evidence"]["attempts"])
+
+    title = xss.scan(lab_server + "/safe/title", param="q")
+    assert_not_vulnerable(title)
+    assert all(not item["executable_context_confirmed"] for item in title["evidence"]["attempts"])
 
 
 def test_sql_injection_and_dynamic_safe_page(lab_server):
-    assert_confirmed(sql_injection.scan(lab_server + "/vuln/sqli", param="id"))
-    assert_not_vulnerable(sql_injection.scan(lab_server + "/safe/dynamic", param="id"))
+    confirmed = sql_injection.scan(lab_server + "/vuln/sqli", param="id")
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["classification"] == "confirmed"
+    assert confirmed["evidence"]["baseline_summary"]["status_codes"]
+    assert confirmed["evidence"]["database_errors"][0]["final_decision"] == "confirmed_database_error"
+
+    safe_dynamic = sql_injection.scan(lab_server + "/safe/dynamic", param="id")
+    assert_not_vulnerable(safe_dynamic)
+    assert "final_decision" in safe_dynamic["evidence"]
 
 
 def test_path_traversal_canary_positive_and_negative(lab_server):
     kwargs = {"param": "file", "canary_path": "../private/cyberscan-canary.txt", "expected_marker": "CYBERSCAN_CANARY"}
-    assert_confirmed(path_traversal.scan(lab_server + "/vuln/traversal", **kwargs))
-    assert_not_vulnerable(path_traversal.scan(lab_server + "/safe/traversal", **kwargs))
+    confirmed = path_traversal.scan(lab_server + "/vuln/traversal", **kwargs)
+    assert_confirmed(confirmed)
+    assert confirmed["evidence"]["payload_family"] == "lab_canary"
+    assert confirmed["evidence"]["marker_matched"] is True
+    assert confirmed["evidence"]["checked_probes"]
+
+    safe = path_traversal.scan(lab_server + "/safe/traversal", **kwargs)
+    assert_not_vulnerable(safe)
+    assert safe["evidence"]["final_decision"] == "no_marker_or_signature_match"
+    assert safe["evidence"]["checked_probes"][0]["status_code"] == 404
+
+
+def test_phase2_missing_required_inputs_are_inconclusive(lab_server):
+    for result in (
+        sql_injection.scan(lab_server + "/vuln/sqli"),
+        html_injection.scan(lab_server + "/vuln/html"),
+        path_traversal.scan(lab_server + "/vuln/traversal"),
+    ):
+        assert result["status"] == "inconclusive"
+        assert result["requests_made"] == 0
+        assert result["evidence"]["reason"] == "missing_required_parameter"
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (xss, {"param": "q"}),
+        (sql_injection, {"param": "id"}),
+        (html_injection, {"param": "q"}),
+        (path_traversal, {"param": "file", "canary_path": "../private/cyberscan-canary.txt", "expected_marker": "CYBERSCAN_CANARY"}),
+    ],
+)
+def test_phase2_scanners_transport_error_counts_attempt(monkeypatch, lab_server, module, kwargs):
+    def fail_request(*args, **request_kwargs):
+        raise OSError("transport failed")
+
+    monkeypatch.setattr(module, "safe_request", fail_request)
+    result = module.scan(lab_server, **kwargs)
+    assert result["status"] == "error"
+    assert result["requests_made"] == 1
+
+
+@pytest.mark.parametrize(
+    "module, kwargs",
+    [
+        (xss, {"param": "q"}),
+        (sql_injection, {"param": "id"}),
+        (html_injection, {"param": "q"}),
+        (path_traversal, {"param": "file", "canary_path": "../private/cyberscan-canary.txt", "expected_marker": "CYBERSCAN_CANARY"}),
+    ],
+)
+@pytest.mark.parametrize("exception", [ScanCancelled("cancelled"), RequestBudgetExceeded("budget")])
+def test_phase2_scanners_propagate_runtime_stop_exceptions(monkeypatch, lab_server, module, kwargs, exception):
+    def stop_request(*args, **request_kwargs):
+        raise exception
+
+    monkeypatch.setattr(module, "safe_request", stop_request)
+    with pytest.raises(type(exception)):
+        module.scan(lab_server, **kwargs)
 
 
 def test_file_upload_positive_and_negative(lab_server):

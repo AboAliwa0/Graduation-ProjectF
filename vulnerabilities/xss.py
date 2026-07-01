@@ -339,8 +339,8 @@ def scan(url, param=""):
 
         # 3) Discover GET forms if no param was provided/found
         if not targets:
-            discovered_targets, discovery_response = discover_get_form_targets(url)
             requests_made += 1
+            discovered_targets, discovery_response = discover_get_form_targets(url)
 
             for item in discovered_targets:
                 add_unique_target(
@@ -382,8 +382,8 @@ def scan(url, param=""):
             target_param = target["param"]
 
             baseline_url = set_query_param(target_url, target_param, token)
-            baseline = safe_request("GET", baseline_url)
             requests_made += 1
+            baseline = safe_request("GET", baseline_url)
 
             baseline_body = body_text(baseline)
             baseline_content_type = baseline.headers.get("Content-Type", "")
@@ -400,8 +400,8 @@ def scan(url, param=""):
                 payload = payload_info["payload"]
 
                 test_url = set_query_param(target_url, target_param, payload)
-                response = safe_request("GET", test_url)
                 requests_made += 1
+                response = safe_request("GET", test_url)
                 last_endpoint = response.url
 
                 content_type = response.headers.get("Content-Type", "")
@@ -431,6 +431,7 @@ def scan(url, param=""):
                     "payload_reflected_raw": payload in body,
                     "payload_reflected_decoded": payload in decoded_body,
                     "confirmed_executable_context": confirmed,
+                    "final_decision": "executable_context_confirmed" if confirmed else "no_executable_context_confirmed",
                     "detection": detection,
                 }
 
@@ -445,6 +446,7 @@ def scan(url, param=""):
                         "confirmed_url": response.url,
                         "confirmed_payload": payload_name,
                         "confirmed_context": payload_info["context"],
+                        "final_decision": "executable_context_confirmed",
                         "baseline_detection": baseline_detection,
                         "detection": detection,
                         "attempts": attempts,
@@ -486,6 +488,7 @@ def scan(url, param=""):
             evidence={
                 "tested_targets": targets,
                 "token": token,
+                "final_decision": "reflected_non_executable" if any_reflection else "no_reflection_detected",
                 "attempts": attempts,
             },
             endpoint=last_endpoint,
@@ -502,4 +505,5 @@ def scan(url, param=""):
             f"Reflected-XSS check failed: {exc}",
             endpoint=url,
             parameter=param,
+            requests_made=requests_made,
         )
