@@ -8,16 +8,32 @@ from pathlib import Path
 from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent
+SERVERLESS_TMP_DIR = Path("/tmp")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _running_on_vercel() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def database_path() -> Path:
-    configured = os.getenv("DATABASE_PATH", "data/scanner.db")
+    configured = os.getenv("DATABASE_PATH", "data/scanner.db").strip() or "data/scanner.db"
     path = Path(configured)
-    if not path.is_absolute():
+    if _running_on_vercel():
+        if not path.is_absolute() or not _is_within(path, SERVERLESS_TMP_DIR):
+            path = SERVERLESS_TMP_DIR / "cyberscan" / path.name
+    elif not path.is_absolute():
         path = BASE_DIR / path
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
@@ -27,7 +43,7 @@ def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(database_path(), timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute(f"PRAGMA journal_mode = {'DELETE' if _running_on_vercel() else 'WAL'}")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA busy_timeout = 15000")
     return conn

@@ -66,3 +66,23 @@ def test_redis_backend_preserves_queued_jobs_for_worker_recovery(tmp_path, monke
     row = conn.execute("SELECT status FROM scans WHERE id=1").fetchone()
     conn.close()
     assert row["status"] == "queued"
+
+
+def test_vercel_uses_writable_temporary_sqlite_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("DATABASE_PATH", "data/scanner.db")
+    import database
+
+    database = importlib.reload(database)
+    monkeypatch.setattr(database, "SERVERLESS_TMP_DIR", tmp_path)
+
+    expected = tmp_path / "cyberscan" / "scanner.db"
+    assert database.database_path() == expected
+    database.init_db()
+    conn = database.connect()
+    journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    conn.close()
+
+    assert journal_mode == "delete"
+    assert {"users", "scans", "audit_logs", "target_scopes"}.issubset(tables)
