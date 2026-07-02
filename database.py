@@ -16,7 +16,7 @@ def utc_now() -> str:
 
 
 def _running_on_vercel() -> bool:
-    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+    return bool(os.environ.get("VERCEL"))
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -40,10 +40,15 @@ def database_path() -> Path:
 
 
 def connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(database_path(), timeout=15, check_same_thread=False)
+    path = database_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute(f"PRAGMA journal_mode = {'DELETE' if _running_on_vercel() else 'WAL'}")
+    if _running_on_vercel():
+        conn.execute("PRAGMA journal_mode = DELETE")
+    else:
+        conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA busy_timeout = 15000")
     return conn
