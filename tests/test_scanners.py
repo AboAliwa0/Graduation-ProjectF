@@ -132,6 +132,10 @@ def test_directory_listing_positive_and_negative(lab_server):
     assert listing["signature"]
     assert listing["link_count"] >= 2
 
+    variant = dir_scan.scan(lab_server + "/lab-listing-directory/", paths="ftp/")
+    assert_confirmed(variant)
+    assert variant["evidence"]["listings"][0]["title"] == "listing directory /ftp/"
+
     safe_404 = dir_scan.scan(lab_server + "/lab-safe/", paths="uploads/")
     assert_not_vulnerable(safe_404)
     assert safe_404["evidence"]["checked_paths"][0]["status_code"] == 404
@@ -576,6 +580,18 @@ def test_login_abuse_five_attempt_limit_potential_and_secret_free_evidence(lab_s
     serialized = json.dumps(result["evidence"])
     assert username not in serialized
     assert "CyberScan-Wrong" not in serialized
+
+
+def test_login_abuse_accepts_failure_status_without_body(lab_server):
+    result = auth_scanner.scan(
+        lab_server,
+        login_url=lab_server + "/auth/no-body-401",
+        test_username="security-test",
+        failure_status_code="401",
+    )
+    assert result["status"] == "potential" and result["confidence"] == "Low", result
+    assert result["evidence"]["failure_evidence_consistent"] is True
+    assert result["evidence"]["expected_failure_status"] == 401
 
 
 def test_login_abuse_stops_early_on_429_and_retry_after(lab_server):

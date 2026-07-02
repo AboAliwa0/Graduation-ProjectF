@@ -34,6 +34,7 @@ LISTING_PATTERNS = (
     re.compile(r"<title>\s*index of\s+", re.I),
     re.compile(r"<h1>\s*index of\s+", re.I),
     re.compile(r"directory listing for", re.I),
+    re.compile(r"\blisting directory\s+/", re.I),
 )
 TITLE_PATTERN = re.compile(r"<title>\s*(.*?)\s*</title>", re.I | re.S)
 

@@ -109,6 +109,10 @@ def lab_server():
     def directory_listing():
         return Response('<title>Index of /uploads</title><h1>Index of /uploads</h1><a href="a.txt">a</a><a href="b.txt">b</a>', mimetype="text/html")
 
+    @app.route("/lab-listing-directory/ftp/")
+    def listing_directory_variant():
+        return Response('<title>listing directory /ftp/</title><a href="a.txt">a</a><a href="b.txt">b</a>', mimetype="text/html")
+
     @app.route("/lab-safe/uploads/")
     def no_directory_listing():
         return Response("not found", status=404, mimetype="text/plain")
@@ -296,6 +300,10 @@ def lab_server():
     @app.route("/auth/no-protection", methods=["POST"])
     def auth_no_protection():
         return Response("Invalid credentials", status=401, mimetype="text/plain")
+
+    @app.route("/auth/no-body-401", methods=["POST"])
+    def auth_no_body_401():
+        return Response("", status=401, mimetype="text/plain")
 
     @app.route("/auth/http-429", methods=["POST"])
     def auth_http_429():

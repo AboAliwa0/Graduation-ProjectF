@@ -15,6 +15,7 @@ inputs = [
     {"name": "password_field", "label": "Password field", "type": "text", "required": False, "placeholder": "password"},
     {"name": "test_username", "label": "Authorized test username", "type": "text", "required": True, "placeholder": "security-test"},
     {"name": "failure_marker", "label": "Normal failure marker", "type": "text", "required": False, "placeholder": "Invalid credentials"},
+    {"name": "failure_status_code", "label": "Normal failure status code", "type": "number", "required": False, "placeholder": "401"},
     {"name": "captcha_marker", "label": "CAPTCHA marker", "type": "text", "required": False, "placeholder": "CAPTCHA"},
     {"name": "lockout_marker", "label": "Lockout marker", "type": "text", "required": False, "placeholder": "Account locked"},
     {"name": "rate_limit_marker", "label": "Rate-limit marker", "type": "text", "required": False, "placeholder": "Too many attempts"},
@@ -30,6 +31,7 @@ def scan(
     password_field="password",
     test_username="",
     failure_marker="",
+    failure_status_code="",
     captcha_marker="",
     lockout_marker="",
     rate_limit_marker="",
@@ -39,11 +41,22 @@ def scan(
         missing_inputs.append("login_url")
     if not test_username:
         missing_inputs.append("test_username")
-    if not failure_marker:
-        missing_inputs.append("failure_marker")
+    expected_failure_status = None
+    if str(failure_status_code or "").strip():
+        try:
+            expected_failure_status = int(str(failure_status_code).strip())
+        except ValueError:
+            return inconclusive(
+                "Failure status code must be a valid integer.",
+                evidence={"failure_status_code": str(failure_status_code), "attempt_count": 0},
+                endpoint=login_url or url,
+                requests_made=0,
+            )
+    if not failure_marker and expected_failure_status is None:
+        missing_inputs.append("failure_marker_or_status_code")
     if missing_inputs:
         return inconclusive(
-            "Login URL, authorized test username, and normal failure marker are required.",
+            "Login URL, authorized test username, and either a normal failure marker or failure status code are required.",
             evidence={"missing_inputs": missing_inputs, "attempt_count": 0},
             endpoint=login_url or url,
             requests_made=0,
@@ -72,7 +85,8 @@ def scan(
                 "status": response.status_code,
                 "retry_after_observed": retry_after_observed,
                 "elapsed": round(elapsed, 3),
-                "failure_marker_seen": failure_marker in response_text,
+                "failure_marker_seen": bool(failure_marker and failure_marker in response_text),
+                "failure_status_matched": bool(expected_failure_status is not None and response.status_code == expected_failure_status),
                 "captcha_observed": captcha_observed,
                 "lockout_observed": lockout_observed,
                 "rate_limit_marker_observed": rate_limit_marker_observed,
@@ -115,12 +129,13 @@ def scan(
             )
         ]
         failure_evidence_consistent = (
-            any(item["failure_marker_seen"] for item in observations)
-            and all(item["failure_marker_seen"] for item in ordinary_failures)
+            any(item["failure_marker_seen"] or item["failure_status_matched"] for item in observations)
+            and all(item["failure_marker_seen"] or item["failure_status_matched"] for item in ordinary_failures)
         )
         evidence = {
             "attempt_count": len(observations),
             "max_attempts": MAX_ATTEMPTS,
+            "expected_failure_status": expected_failure_status,
             "throttling_observed": throttling_observed,
             "retry_after_observed": retry_after_observed,
             "progressive_delay_observed": progressive_delay_observed,
