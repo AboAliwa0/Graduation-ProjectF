@@ -12,7 +12,7 @@ Use CyberScan only against a target owned by the project team or explicitly auth
 ## Demo Flow
 
 1. Open `http://127.0.0.1:5000` and log in with the prepared demo account.
-2. Open **New Scan** from the Dashboard.
+2. Open **New Scan** from the Dashboard and keep the default **Quick** preset.
 3. Enter the authorized instructor target URL.
 4. Check the authorization confirmation box.
 5. Select the demo-safe modules:
@@ -49,3 +49,5 @@ If the live target or network is unavailable, open the latest completed Scan Det
 ## Final Safety Reminder
 
 Never scan a system without explicit authorization. Avoid authentication, upload, stored-XSS, SSRF, blind-XSS, and deep browser modules during the live discussion unless the instructor prepared an isolated lab and supplied the required inputs.
+
+Do not enable IDOR, Authorization Matrix, Login Abuse, Weak Credential, File Upload, Stored XSS, SSRF, Blind XSS, or gRPC during the live demo unless the instructor supplied the exact authorized endpoint, account/profile, and required inputs. CyberScan does not claim to detect every vulnerability; automated results still require professional validation.

@@ -1,12 +1,12 @@
 {
   "product": "CyberScan Professional",
   "version": "5.0.0",
-  "generated_at": "2026-06-26T21:52:48+00:00",
+  "generated_at": "2026-07-02T00:00:00+02:00",
   "automated_tests": {
-    "total": 54,
-    "passed": 54,
+    "total": 140,
+    "passed": 140,
     "failed": 0,
-    "duration_seconds": 28.6
+    "duration_seconds": 32.18
   },
   "scanner_modules": {
     "total": 26,

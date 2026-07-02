@@ -48,17 +48,18 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def runtime_secret(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if value:
-        return value
+def runtime_secret(name: str, *aliases: str) -> str:
+    for candidate in (name, *aliases):
+        value = os.getenv(candidate, "").strip()
+        if value:
+            return value
     # Safe for local development. setup scripts generate persistent values.
     return secrets.token_urlsafe(48)
 
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=runtime_secret("FLASK_SECRET_KEY"),
+    SECRET_KEY=runtime_secret("FLASK_SECRET_KEY", "SECRET_KEY"),
     JWT_SECRET_KEY=runtime_secret("JWT_SECRET_KEY"),
     SESSION_COOKIE_NAME="cyberscan_session",
     SESSION_COOKIE_HTTPONLY=True,
@@ -1624,6 +1625,7 @@ def oast_callback(token: str):
     response = app.response_class(body, mimetype="application/javascript")
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     return response, 200 if recorded else 404
 
 

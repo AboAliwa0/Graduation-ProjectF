@@ -7,7 +7,7 @@
 ## حالة الإصدار
 
 - **26 وحدة فحص واكتشاف**.
-- **54 اختبارًا آليًا** تشمل الحالات المصابة والسليمة ومحرك المتصفح وAPI والطابور الموزع.
+- **140 اختبارًا آليًا** تشمل الحالات المصابة والسليمة ومحرك المتصفح وAPI والطابور الموزع وحدود الأمان.
 - متصفح Chromium حقيقي عبر Playwright لتطبيقات React وAngular وVue وSPA.
 - OpenAPI 2.0 و3.x، بما في ذلك 3.2.0.
 - GraphQL schema inventory، WebSocket handshake inventory، وgRPC Reflection inventory.
@@ -16,6 +16,9 @@
 - تشغيل محلي بـThread pool أو تشغيل موزع اختياري عبر Redis مع تشفير مهام الطابور.
 - تصدير PDF وJSON وSARIF وArtifacts وHAR منقح.
 - ربط النتائج بـOWASP Top 10 وفئات ASVS 5.0.
+- الإعداد الافتراضي للعرض هو **Quick Scan** منخفض التأثير، ولا يختار وحدات الإعداد الخاص تلقائيًا.
+
+تُحسب النتائج ذات الحالة `confirmed` أو `potential` فقط كثغرات أمنية. حالات `error` و`inconclusive` نتائج تشغيلية منفصلة ولا ترفع عدد الثغرات. كما أن **Risk Score تجميعي داخلي وليس CVSS**.
 
 ## إمكانات التطبيقات الحديثة
 
@@ -222,7 +225,7 @@ pytest -q
 النتيجة المسجلة للإصدار:
 
 ```text
-54 passed
+140 passed
 ```
 
 تغطي الاختبارات:
@@ -245,6 +248,7 @@ pytest -q
 - DOM XSS الكامل يحتاج Taint Tracking أو تحليل يدوي أعمق.
 - WebSocket وgRPC في الوضع الافتراضي Inventory فقط حتى لا يغيّرا بيانات التطبيق.
 - OIDC scanner لا يجرب تسجيل دخول أو اختطاف Redirect URI تلقائيًا.
-- نجاح 54/54 لا يعني ضمان اكتشاف كل ثغرة في كل تطبيق.
+- وحدات IDOR وAuthorization Matrix وLogin Abuse وWeak Credential وFile Upload وStored XSS وSSRF وBlind XSS وgRPC تحتاج مدخلات مختبرية صريحة من المدرس ولا تُستخدم تلقائيًا في العرض.
+- نجاح 140/140 لا يعني ضمان اكتشاف كل ثغرة في كل تطبيق.
 
 راجع `SECURITY.md` و`TEST_REPORT_AR.md` و`docs/ARCHITECTURE_AR.md` و`docs/SCANNER_MATRIX_AR.md`.

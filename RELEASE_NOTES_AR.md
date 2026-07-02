@@ -35,10 +35,12 @@
 - Request budget والإلغاء ينتقلان عبر جميع الوحدات دون التحول إلى Scanner error.
 - الردود الكبيرة تقطع أثناء Streaming.
 - منع انتقال Authorization/Cookies إلى Origin مختلف.
+- تقييد مدخلات نقاط الفحص بنفس Origin الهدف، وتنقيح معاملات URL الحساسة، وتشديد أدلة Directory Listing وHost Header.
+- جعل Quick Scan منخفض التأثير هو الإعداد الافتراضي، مع عدم اختيار وحدات الإعداد الخاص تلقائيًا.
 
 ## التحقق
 
-- Pytest: **54/54 ناجحًا**.
+- Pytest: **140/140 ناجحًا**.
 - اختبارات حقيقية لـChromium وWebSocket وgRPC Reflection.
 - Python compile: ناجح.
 - Dashboard JavaScript syntax: ناجح.

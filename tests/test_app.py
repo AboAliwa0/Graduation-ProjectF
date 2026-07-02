@@ -1,6 +1,7 @@
 import importlib
 import os
 import time
+from pathlib import Path
 
 
 def _load_app(tmp_path, monkeypatch):
@@ -36,6 +37,35 @@ def test_registration_login_and_scanner_catalog(tmp_path, monkeypatch):
     payload = catalog.get_json()
     assert len(payload["scanners"]) == 26
     assert all("inputs" in item for item in payload["scanners"])
+
+
+def test_oast_script_route_allows_cross_origin_loading(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    from services.oast import cleanup, register
+
+    token = "oast-script-header-test"
+    register(token)
+    try:
+        response = app_module.app.test_client().get(f"/oast/{token}")
+    finally:
+        cleanup(token)
+
+    assert response.status_code == 200
+    assert response.headers["Cross-Origin-Resource-Policy"] == "cross-origin"
+
+
+def test_dashboard_safe_preset_is_default_and_excludes_special_setup(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    source = (Path(app_module.__file__).parent / "static" / "js" / "dashboard-pro.js").read_text(encoding="utf-8")
+
+    assert "$('#scanMode').value = 'quick';" in source
+    assert "$('#requestBudget').value = '60';" in source
+    assert "!SPECIAL_SETUP_SCAN_IDS.has(scanner.id)" in source
+    for scanner_id in {
+        "idor", "authorization_matrix_scanner", "auth_scanner", "weak_password_scanner",
+        "file_upload", "stored_xss_scanner", "ssrf_scanner", "blind_xss", "grpc_scanner",
+    }:
+        assert f"'{scanner_id}'" in source
 
 
 def test_scan_requires_csrf_authorization_and_blocks_private_targets(tmp_path, monkeypatch):
@@ -333,6 +363,28 @@ def test_sarif_export_and_audit_log(tmp_path, monkeypatch):
     assert audit_response.status_code == 200
     actions = {item["action"] for item in audit_response.get_json()["events"]}
     assert {"auth.register", "auth.login", "scan.export_sarif"}.issubset(actions)
+
+
+def test_scan_details_and_exports_are_owner_only(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    owner_client, _, owner_id = _register_and_login(app_module, "scan-owner@example.com")
+    conn = app_module.connect()
+    cursor = conn.execute(
+        "INSERT INTO scans (user_id,target,result,status,progress,completed_at) VALUES (?,?,?,?,?,?)",
+        (owner_id, "https://example.com", "[]", "done", 100, app_module.utc_now()),
+    )
+    scan_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    assert owner_client.get(f"/scan/{scan_id}").status_code == 200
+    intruder_client, _, _ = _register_and_login(app_module, "other-user@example.com")
+    for path in (
+        f"/scan/{scan_id}",
+        f"/scan/{scan_id}/report",
+        f"/scan/{scan_id}/export-json",
+    ):
+        assert intruder_client.get(path).status_code == 404
 
 
 def test_cancel_queued_scan_updates_state(tmp_path, monkeypatch):

@@ -9,8 +9,12 @@
     failed: 'Failed', interrupted: 'Interrupted', budget_exhausted: 'Budget exhausted', error: 'Error', potential: 'Potential', confirmed: 'Confirmed', not_vulnerable: 'Not vulnerable', inconclusive: 'Inconclusive'
   };
   const QUICK_SCAN_IDS = ['info_scan', 'cors_scanner', 'clickjacking_scanner', 'host_header_scanner', 'csrf_scan'];
-  const MODERN_SCAN_IDS = ['modern_spa_scanner', 'openapi_scanner', 'graphql_scanner', 'websocket_scanner', 'grpc_scanner', 'authorization_matrix_scanner', 'oidc_scanner'];
-  const STANDARD_EXCLUDED = new Set(['weak_password_scanner', 'auth_scanner', ...MODERN_SCAN_IDS]);
+  const SPECIAL_SETUP_SCAN_IDS = new Set([
+    'idor', 'authorization_matrix_scanner', 'auth_scanner', 'weak_password_scanner',
+    'file_upload', 'stored_xss_scanner', 'ssrf_scanner', 'blind_xss', 'grpc_scanner'
+  ]);
+  const MODERN_SCAN_IDS = ['modern_spa_scanner', 'openapi_scanner', 'graphql_scanner', 'websocket_scanner', 'oidc_scanner'];
+  const STANDARD_EXCLUDED = new Set([...SPECIAL_SETUP_SCAN_IDS, ...MODERN_SCAN_IDS]);
 
   const state = {
     scans: [],
@@ -440,7 +444,7 @@
   }
 
   function renderScannerGrid(selectedIds) {
-    const selected = new Set(selectedIds || selectedForMode($('#scanMode')?.value || 'standard'));
+    const selected = new Set(selectedIds || selectedForMode($('#scanMode')?.value || 'quick'));
     const grid = $('#scannerGrid');
     if (!grid) return;
     if (!state.scanners.length) {
@@ -461,7 +465,7 @@
   function selectedForMode(mode) {
     if (mode === 'quick') return new Set(QUICK_SCAN_IDS.filter(id => state.scanners.some(scanner => scanner.id === id)));
     if (mode === 'modern') return new Set(MODERN_SCAN_IDS.filter(id => state.scanners.some(scanner => scanner.id === id)));
-    if (mode === 'deep') return new Set(state.scanners.map(scanner => scanner.id));
+    if (mode === 'deep') return new Set(state.scanners.filter(scanner => !SPECIAL_SETUP_SCAN_IDS.has(scanner.id)).map(scanner => scanner.id));
     return new Set(state.scanners.filter(scanner => !STANDARD_EXCLUDED.has(scanner.id)).map(scanner => scanner.id));
   }
 
@@ -679,8 +683,8 @@
 
   function resetScanModal() {
     $('#scanForm').reset();
-    $('#scanMode').value = 'standard';
-    $('#requestBudget').value = '120';
+    $('#scanMode').value = 'quick';
+    $('#requestBudget').value = '60';
     $('#verifyTls').checked = true;
     renderScannerGrid();
     renderScannerInputs();
@@ -748,6 +752,7 @@
   }
 
   async function init() {
+    resetScanModal();
     bindEvents();
     renderAll();
     try {

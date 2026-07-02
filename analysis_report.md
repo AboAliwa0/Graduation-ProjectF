@@ -26,7 +26,7 @@
 ## نتيجة الجودة
 
 - 26 وحدة.
-- 54/54 اختبارًا ناجحًا.
+- 140/140 اختبارًا ناجحًا.
 - Chromium/WebSocket/gRPC servers حقيقية داخل المختبر.
 - Compile وJavaScript syntax ناجحان.
 
