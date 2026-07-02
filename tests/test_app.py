@@ -164,6 +164,50 @@ def test_local_analysis_is_bounded_and_escapes_third_party_dependency(tmp_path, 
     assert response.get_json()["analysis_mode"] == "local_deterministic"
 
 
+def test_ai_analysis_separates_operational_results_and_redacts_evidence(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    client, csrf, _ = _register_and_login(app_module, "ai-hardening@example.com")
+    secret = "raw-ai-secret-token"
+    response = client.post(
+        "/ai-analysis",
+        json={
+            "scan_results": [
+                {"name": "xss", "status": "confirmed", "severity": "High", "result": "Executable reflection."},
+                {"name": "cors", "status": "potential", "severity": "Medium", "result": "Manual validation required."},
+                {
+                    "name": "ssrf", "status": "error", "result": "Transport failed.",
+                    "evidence": {
+                        "Authorization": f"Bearer {secret}",
+                        "endpoint_url": f"https://example.test/check?access_token={secret}",
+                    },
+                },
+                {
+                    "name": "blind_xss", "status": "inconclusive", "result": "No execution beacon.",
+                    "evidence": {"callback_url": f"https://oast.example/oast/{secret}"},
+                },
+                {"name": "headers", "status": "not_vulnerable", "result": "Protected."},
+                {"name": "old_record", "vulnerable": True, "severity": {"legacy": "high"}, "cvss": {"score": "old"}},
+                "malformed entry",
+                None,
+            ]
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert [item["status"] for item in payload["vulnerabilities"]] == ["confirmed", "potential", "confirmed"]
+    assert [item["status"] for item in payload["operational_results"]] == ["error", "inconclusive"]
+    assert payload["finding_count"] == 3
+    assert payload["operational_count"] == 2
+    assert "operational limitations" in payload["summary"]
+    assert "does not prove complete security" in payload["summary"]
+    assert "not CVSS" in payload["summary"]
+    serialized = __import__("json").dumps(payload)
+    assert secret not in serialized
+    assert "Bearer raw" not in serialized
+
+
 def test_end_to_end_authorized_local_scan(tmp_path, monkeypatch, lab_server):
     import time
 
