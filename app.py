@@ -7,7 +7,7 @@ import os
 import re
 import secrets
 import time
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from urllib.parse import urlparse
 from xml.sax.saxutils import escape
@@ -154,6 +154,12 @@ DEFAULT_REQUEST_BUDGET = int(os.getenv("DEFAULT_REQUEST_BUDGET", "120"))
 MAX_REQUEST_BUDGET = int(os.getenv("MAX_REQUEST_BUDGET", "500"))
 FORBIDDEN_GLOBAL_HEADERS = {"host", "content-length", "transfer-encoding", "connection", "proxy-authorization"}
 USER_ROLES = {"student", "developer"}
+LEARNING_MODULES = {
+    "sql_injection", "xss", "html_injection", "path_traversal", "idor", "csrf_scan",
+    "auth_scanner", "weak_password_scanner", "rate_limit", "clickjacking_scanner",
+    "cors_scanner", "host_header_scanner", "open_redirect_scanner", "dir_scan",
+    "info_scan", "websocket_scanner", "modern_spa_scanner",
+}
 
 
 def csrf_token() -> str:
@@ -171,7 +177,7 @@ app.jinja_env.globals["csrf_token"] = csrf_token
 def enforce_csrf():
     if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
         return None
-    if request.path.startswith(("/socket.io/", "/oast/")) or request.endpoint in {"api_login", "api_register"}:
+    if request.path.startswith(("/socket.io/", "/oast/")) or request.endpoint in {"api_login", "api_register", "ai.assistant_chat"}:
         return None
     if request.headers.get("Authorization", "").lower().startswith("bearer "):
         try:
@@ -1261,6 +1267,89 @@ def api_me():
     if not user or not user["is_active"]:
         return jsonify({"error": "Unauthorized"}), 401
     return jsonify({"id": user["id"], "email": user["email"], "role": user["role"]})
+
+
+def require_student_api():
+    user_id = get_current_user_id()
+    user = get_user(user_id) if user_id else None
+    return (user_id, user) if user and user["is_active"] and user["role"] == "student" else (None, None)
+
+
+@app.route("/api/learning/progress", methods=["GET", "POST"])
+def api_learning_progress():
+    user_id, _ = require_student_api()
+    if not user_id:
+        return jsonify({"error": "Student access required"}), 403
+    conn = connect()
+    if request.method == "POST":
+        data = request_payload()
+        module_id = str(data.get("module_id", "")).strip()
+        if module_id not in LEARNING_MODULES:
+            conn.close()
+            return jsonify({"error": "Unknown learning module"}), 400
+        watched = 1 if data.get("watched") is True else 0
+        try:
+            quiz_score = max(0, min(100, int(data.get("quiz_score", 0))))
+        except (TypeError, ValueError):
+            conn.close()
+            return jsonify({"error": "Invalid quiz score"}), 400
+        conn.execute(
+            """INSERT INTO learning_progress (user_id,module_id,watched,quiz_score,updated_at)
+               VALUES (?,?,?,?,?) ON CONFLICT(user_id,module_id) DO UPDATE SET
+               watched=excluded.watched, quiz_score=MAX(learning_progress.quiz_score,excluded.quiz_score), updated_at=excluded.updated_at""",
+            (user_id, module_id, watched, quiz_score, utc_now()),
+        )
+        today = date.today()
+        profile = conn.execute("SELECT * FROM learning_profiles WHERE user_id=?", (user_id,)).fetchone()
+        streak = int(profile["streak"] or 0) if profile else 0
+        last = date.fromisoformat(profile["last_activity_date"]) if profile and profile["last_activity_date"] else None
+        if last != today:
+            streak = streak + 1 if last == today - timedelta(days=1) else 1
+        rows = conn.execute("SELECT watched,quiz_score FROM learning_progress WHERE user_id=?", (user_id,)).fetchall()
+        xp = sum((20 if row["watched"] else 0) + (30 if row["quiz_score"] >= 70 else 0) for row in rows)
+        conn.execute(
+            """INSERT INTO learning_profiles (user_id,xp,streak,last_activity_date) VALUES (?,?,?,?)
+               ON CONFLICT(user_id) DO UPDATE SET xp=excluded.xp,streak=excluded.streak,last_activity_date=excluded.last_activity_date""",
+            (user_id, xp, streak, today.isoformat()),
+        )
+        conn.commit()
+    rows = conn.execute("SELECT module_id,watched,quiz_score FROM learning_progress WHERE user_id=?", (user_id,)).fetchall()
+    profile = conn.execute("SELECT xp,streak FROM learning_profiles WHERE user_id=?", (user_id,)).fetchone()
+    conn.close()
+    modules = {row["module_id"]: {"watched": bool(row["watched"]), "quiz_score": row["quiz_score"]} for row in rows}
+    completed = sum(1 for item in modules.values() if item["watched"])
+    return jsonify({
+        "modules": modules, "xp": int(profile["xp"] if profile else 0),
+        "streak": int(profile["streak"] if profile else 0), "completed": completed,
+        "total": len(LEARNING_MODULES), "certificate_ready": completed == len(LEARNING_MODULES),
+    })
+
+
+@app.route("/learning/certificate")
+def learning_certificate():
+    user_id, user = require_student_api()
+    if not user_id:
+        return redirect("/login")
+    conn = connect()
+    completed = conn.execute("SELECT COUNT(*) AS count FROM learning_progress WHERE user_id=? AND watched=1", (user_id,)).fetchone()["count"]
+    conn.close()
+    if completed != len(LEARNING_MODULES):
+        return "Complete all learning modules before exporting your certificate.", 403
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=54, leftMargin=54, topMargin=60, bottomMargin=50)
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("CertificateTitle", parent=styles["Title"], fontSize=28, leading=34, textColor=colors.HexColor("#0891B2"), spaceAfter=22)
+    body = ParagraphStyle("CertificateBody", parent=styles["BodyText"], fontSize=14, leading=23, alignment=1, textColor=colors.HexColor("#334155"))
+    elements = [
+        Spacer(1, 40), Paragraph("CYBERSCAN LEARNING CENTER", title),
+        Paragraph("Certificate of Completion", styles["Heading1"]), Spacer(1, 24),
+        Paragraph("This certificate is proudly presented to", body), Spacer(1, 12),
+        Paragraph(escape(user["email"]), ParagraphStyle("Student", parent=title, fontSize=21, textColor=colors.HexColor("#0F172A"))),
+        Paragraph(f"for successfully completing all {len(LEARNING_MODULES)} modules in the beginner web security learning path.", body),
+        Spacer(1, 34), Paragraph(f"Issued {date.today().isoformat()} | CyberScan Professional 5.0", body),
+    ]
+    doc.build(elements); buffer.seek(0)
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="cyberscan-learning-certificate.pdf")
 
 
 @app.route("/api/scanners")

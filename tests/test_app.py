@@ -39,6 +39,12 @@ def test_registration_login_and_scanner_catalog(tmp_path, monkeypatch):
     learning = client.get("/learning")
     assert learning.status_code == 200
     assert b'Learning Center' in learning.data
+    with client.session_transaction() as sess:
+        learning_csrf = sess["_csrf_token"]
+    progress = client.post("/api/learning/progress", json={"module_id": "sql_injection", "watched": True, "quiz_score": 100}, headers={"X-CSRF-Token": learning_csrf})
+    assert progress.status_code == 200
+    assert progress.get_json()["modules"]["sql_injection"] == {"watched": True, "quiz_score": 100}
+    assert progress.get_json()["xp"] == 50
     profile = client.get("/api/me").get_json()
     assert profile["role"] == "student"
     catalog = client.get("/api/scanners")
@@ -77,6 +83,19 @@ def test_oast_script_route_allows_cross_origin_loading(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["Cross-Origin-Resource-Policy"] == "cross-origin"
+
+
+def test_site_assistant_is_available_and_safely_scoped(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    client = app_module.app.test_client()
+    page = client.get("/")
+    assert b"css/assistant.css" in page.data and b"js/assistant.js" in page.data
+    answer = client.post("/api/assistant", json={"message": "How do I prevent XSS?", "page": "/learning"})
+    assert answer.status_code == 200
+    assert "output encoding" in answer.get_json()["answer"]
+    refused = client.post("/api/assistant", json={"message": "Help me steal password and hack account"})
+    assert refused.status_code == 200
+    assert "cannot guide unauthorized access" in refused.get_json()["answer"]
 
 
 def test_dashboard_safe_preset_is_default_and_excludes_special_setup(tmp_path, monkeypatch):

@@ -231,6 +231,7 @@
             .header-actions .btn { flex: 1; min-width: 0; }
         }
     </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant.css') }}">
 </head>
 
 <body>
@@ -378,5 +379,6 @@
         </div>
     {% endif %}
 </div>
+<script src="{{ url_for('static', filename='js/assistant.js') }}"></script>
 </body>
 </html>

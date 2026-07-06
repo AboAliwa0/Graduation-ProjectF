@@ -6,6 +6,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}" />
   <title>CyberScan Professional — Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-pro.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant.css') }}" />
 </head>
 <body data-user-role="{{ current_user.role }}">
   <div class="ambient ambient-one"></div>
@@ -325,5 +326,6 @@
   </dialog>
 
   <script src="{{ url_for('static', filename='js/dashboard-pro.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/assistant.js') }}"></script>
 </body>
 </html>

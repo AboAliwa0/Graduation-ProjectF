@@ -362,6 +362,7 @@
             }
         }
     </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant.css') }}">
 </head>
 
 <body>
@@ -489,5 +490,6 @@ document.querySelectorAll(".fade-up").forEach((el, index) => {
     setTimeout(() => el.classList.add("show"), index * 90);
 });
 </script>
+<script src="{{ url_for('static', filename='js/assistant.js') }}"></script>
 </body>
 </html>

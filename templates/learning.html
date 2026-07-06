@@ -119,6 +119,30 @@
     .progress-ring-wrap strong{ font-size:26px; font-family:'JetBrains Mono',monospace; }
     .progress-ring-wrap span{ font-size:11px; color:var(--lc-mute); text-transform:uppercase; letter-spacing:.08em; }
 
+    .welcome-hero{
+      margin-top:24px; padding:26px; border:1px solid rgba(244,183,64,.24); border-radius:22px;
+      background:linear-gradient(135deg,rgba(244,183,64,.13),rgba(45,212,191,.07) 62%,rgba(255,255,255,.025));
+      display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:center;
+      box-shadow:0 24px 70px rgba(0,0,0,.22); overflow:hidden; position:relative;
+    }
+    .welcome-hero::after{ content:"🎓"; position:absolute; right:22%; top:-38px; font-size:130px; opacity:.045; transform:rotate(-10deg); }
+    .welcome-kicker{ display:inline-flex; align-items:center; gap:7px; color:var(--lc-study); font-size:12px; font-weight:700; margin-bottom:9px; }
+    .welcome-kicker::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--lc-study); box-shadow:0 0 14px var(--lc-study); }
+    .welcome-hero h2{ font-size:clamp(21px,3vw,31px); margin:0 0 9px; max-width:700px; }
+    .welcome-hero p{ color:var(--lc-mute); line-height:1.65; margin:0; max-width:680px; }
+    .continue-btn{
+      border:0; border-radius:12px; padding:13px 18px; min-width:180px; color:#111008; font-weight:800;
+      background:linear-gradient(135deg,var(--lc-study),#ffd978); box-shadow:0 12px 32px rgba(244,183,64,.2);
+    }
+    .continue-btn:hover{ transform:translateY(-2px); }
+    .journey-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px; }
+    .journey-stat{ padding:14px 16px; border:1px solid var(--lc-border); border-radius:14px; background:rgba(255,255,255,.025); }
+    .journey-stat strong{ display:block; color:var(--lc-ink); font-size:18px; margin-bottom:3px; }
+    .journey-stat span{ color:var(--lc-mute); font-size:11.5px; }
+    .progress-ring-wrap{ position:relative; width:132px; height:132px; margin:auto; border:0; border-radius:50%; background:conic-gradient(var(--lc-study) 0deg,rgba(255,255,255,.07) 0deg); }
+    .progress-ring-wrap::before{ content:""; position:absolute; inset:10px; border-radius:50%; background:var(--lc-bg-2); }
+    .progress-ring-wrap strong,.progress-ring-wrap span{ position:relative; z-index:1; }
+
     /* filter + search row */
     .toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:28px 0 20px; }
     .stage-tabs{ display:flex; gap:6px; flex-wrap:wrap; }
@@ -148,9 +172,10 @@
       position:absolute; left:-26px; top:2px; width:14px; height:14px; border-radius:50%;
       background:var(--lc-bg); border:2px solid var(--lc-study);
     }
-    .stage-head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
+    .stage-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
     .stage-head h3{ margin:0; font-size:15px; }
     .stage-count{ font-size:11.5px; color:var(--lc-mute); }
+    .stage-progress{ margin-left:auto; color:var(--lc-study); font-size:11px; font-family:'JetBrains Mono',monospace; padding:4px 8px; border-radius:999px; background:var(--lc-study-dim); }
     .stage-desc{ margin:0 0 16px; font-size:13px; color:var(--lc-mute); max-width:640px; line-height:1.5; }
 
     .lesson-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:16px; }
@@ -160,6 +185,9 @@
     }
     .lesson-card:hover{ border-color:var(--lc-border-hi); transform:translateY(-2px); }
     .lesson-card.done{ border-color:rgba(45,212,191,.4); background:linear-gradient(180deg, rgba(45,212,191,.06), var(--lc-panel)); }
+    .lesson-card.next{ border-color:rgba(244,183,64,.5); box-shadow:0 0 0 1px rgba(244,183,64,.09),0 18px 46px rgba(0,0,0,.2); }
+    .lesson-card.next::before{ content:"NEXT LESSON"; position:absolute; top:10px; left:10px; z-index:2; padding:4px 8px; border-radius:7px; background:var(--lc-study); color:#171208; font:700 9px 'JetBrains Mono',monospace; }
+    .lesson-card{ position:relative; }
 
     .lesson-video{ position:relative; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:16/9; }
     .lesson-video video{ width:100%; height:100%; display:block; object-fit:cover; }
@@ -179,6 +207,26 @@
     .lesson-card.done .watch-toggle{ color:var(--lc-signal); border-color:rgba(45,212,191,.4); background:var(--lc-signal-dim); }
     .watch-toggle .dot{ width:7px; height:7px; border-radius:50%; background:var(--lc-faint); }
     .lesson-card.done .watch-toggle .dot{ background:var(--lc-signal); }
+    .lesson-actions{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+    .lesson-action{ border:1px solid var(--lc-border); background:rgba(255,255,255,.025); color:var(--lc-mute); border-radius:8px; padding:7px 4px; font-size:11px; }
+    .lesson-action:hover{ color:var(--lc-ink); border-color:var(--lc-border-hi); }
+    .quiz-pass{ color:var(--lc-signal); font:600 10px 'JetBrains Mono',monospace; }
+    .learning-dialog{ border:1px solid var(--lc-border-hi); border-radius:18px; padding:0; color:var(--lc-ink); background:#0d1320; width:min(620px,92vw); box-shadow:0 30px 100px #000; }
+    .learning-dialog::backdrop{ background:rgba(2,6,12,.78); backdrop-filter:blur(7px); }
+    .dialog-body{ padding:24px; }
+    .dialog-head{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:18px; }
+    .dialog-head h2{ margin:4px 0 0; font-size:21px; }
+    .dialog-close{ border:1px solid var(--lc-border); background:transparent; color:var(--lc-ink); border-radius:9px; width:36px; height:36px; }
+    .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0; }
+    .detail-box{ border:1px solid var(--lc-border); background:var(--lc-panel); padding:13px; border-radius:11px; }
+    .detail-box strong{ color:var(--lc-study); display:block; font-size:11px; margin-bottom:5px; }
+    .detail-box p{ margin:0; color:var(--lc-mute); font-size:13px; line-height:1.55; }
+    .quiz-option{ display:block; width:100%; text-align:left; margin:8px 0; padding:11px 13px; border:1px solid var(--lc-border); border-radius:10px; background:var(--lc-panel); color:var(--lc-ink); }
+    .quiz-option:hover{ border-color:var(--lc-study); }
+    .quiz-feedback{ min-height:22px; margin-top:12px; color:var(--lc-mute); line-height:1.5; }
+    .lab-steps{ color:var(--lc-mute); line-height:1.8; padding-left:20px; }
+    .scan-link,.certificate-link{ display:inline-flex; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:700; background:var(--lc-signal-dim); color:var(--lc-signal); border:1px solid rgba(45,212,191,.3); }
+    .certificate-link.locked{ opacity:.45; pointer-events:none; filter:grayscale(1); }
 
     #emptyState{ display:none; text-align:center; padding:60px 0; color:var(--lc-mute); }
     #emptyState strong{ display:block; color:var(--lc-ink); margin-bottom:6px; font-size:15px; }
@@ -190,7 +238,9 @@
       .side-nav{ flex-direction:row; }
       .content{ padding:24px 20px 48px; }
       .progress-hero{ grid-template-columns:1fr; }
-      .progress-ring-wrap{ border-left:none; border-top:1px solid var(--lc-border); padding-top:14px; }
+      .progress-ring-wrap{ border:0; padding-top:0; }
+      .welcome-hero{ grid-template-columns:1fr; }
+      .continue-btn{ width:100%; }
     }
 
     /* Match the navigation shell used throughout CyberScan. */
@@ -225,10 +275,17 @@
       background:rgba(251,113,133,.06); border-radius:16px; padding:12px 14px;
     }
 
+    @media (max-width:560px){
+      .journey-stats{ grid-template-columns:1fr; }
+      .welcome-hero{ padding:20px; }
+      .lesson-grid{ grid-template-columns:1fr; }
+    }
+
     @media (prefers-reduced-motion: reduce){
       .lesson-card{ transition:none; }
     }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant.css') }}" />
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -268,6 +325,23 @@
         <p>Seventeen short lessons, one per scanner module, grouped into the order a beginner would naturally learn them. Mark a lesson watched to track your progress — it's saved on this device.</p>
       </header>
 
+      <section class="welcome-hero" aria-labelledby="welcomeTitle">
+        <div>
+          <span class="welcome-kicker" id="journeyStatus">Your guided learning path</span>
+          <h2 id="welcomeTitle">Build your security skills, one small lesson at a time.</h2>
+          <p id="nextLessonCopy">Start with the foundations, watch a short lesson, then mark it complete. No pressure and no locked content—you always know what comes next.</p>
+          <div class="journey-stats" aria-label="Course overview">
+            <div class="journey-stat"><strong>17</strong><span>Short practical lessons</span></div>
+            <div class="journey-stat"><strong>4</strong><span>Beginner-friendly stages</span></div>
+            <div class="journey-stat"><strong id="remainingCount">17</strong><span>Lessons remaining</span></div>
+            <div class="journey-stat"><strong id="xpCount">0 XP</strong><span>Experience earned</span></div>
+            <div class="journey-stat"><strong id="streakCount">0 🔥</strong><span>Day learning streak</span></div>
+            <div class="journey-stat"><strong id="badgeCount">0</strong><span>Stage badges earned</span></div>
+          </div>
+        </div>
+        <button class="continue-btn" id="continueLearning" type="button">Start first lesson →</button>
+      </section>
+
       <section class="progress-hero">
         <div>
           <h2>Your progress</h2>
@@ -302,7 +376,7 @@
 
         <section class="stage" data-stage="injection">
           <span class="stage-node"></span>
-          <div class="stage-head"><h3>1 · Injection</h3><span class="stage-count">4 modules</span></div>
+          <div class="stage-head"><h3>1 · Injection</h3><span class="stage-count">4 modules</span><span class="stage-progress">0 / 4</span></div>
           <p class="stage-desc">What happens when untrusted input is treated as code or markup instead of data. Start here — most other vulnerability classes are variations on this idea.</p>
           <div class="lesson-grid">
 
@@ -347,7 +421,7 @@
 
         <section class="stage" data-stage="access">
           <span class="stage-node"></span>
-          <div class="stage-head"><h3>2 · Access &amp; Auth</h3><span class="stage-count">5 modules</span></div>
+          <div class="stage-head"><h3>2 · Access &amp; Auth</h3><span class="stage-count">5 modules</span><span class="stage-progress">0 / 5</span></div>
           <p class="stage-desc">Flaws in who is allowed to do what: broken authorization, weak logins, and requests forged on a victim's behalf.</p>
           <div class="lesson-grid">
 
@@ -401,7 +475,7 @@
 
         <section class="stage" data-stage="config">
           <span class="stage-node"></span>
-          <div class="stage-head"><h3>3 · Configuration &amp; Recon</h3><span class="stage-count">6 modules</span></div>
+          <div class="stage-head"><h3>3 · Configuration &amp; Recon</h3><span class="stage-count">6 modules</span><span class="stage-progress">0 / 6</span></div>
           <p class="stage-desc">Issues that come from how a server or app is set up rather than from code logic — often the easiest wins for an attacker doing reconnaissance.</p>
           <div class="lesson-grid">
 
@@ -464,7 +538,7 @@
 
         <section class="stage" data-stage="modern">
           <span class="stage-node"></span>
-          <div class="stage-head"><h3>4 · Modern Web</h3><span class="stage-count">2 modules</span></div>
+          <div class="stage-head"><h3>4 · Modern Web</h3><span class="stage-count">2 modules</span><span class="stage-progress">0 / 2</span></div>
           <p class="stage-desc">Risks that shifted in with single-page apps, live sockets, and API-first architectures — the newest additions to the checklist.</p>
           <div class="lesson-grid">
 
@@ -495,8 +569,19 @@
         <strong>No lessons match your filters</strong>
         <span>Try clearing the search box or picking "All stages".</span>
       </div>
+      <section class="progress-hero" style="margin-top:28px">
+        <div><h2>Completion certificate</h2><p>Finish all 17 lessons to unlock a downloadable CyberScan learning certificate.</p></div>
+        <div style="display:flex;align-items:center;justify-content:center"><a class="certificate-link locked" id="certificateLink" href="/learning/certificate">🔒 Complete the path</a></div>
+      </section>
     </main>
   </div>
+
+  <dialog class="learning-dialog" id="learningDialog">
+    <div class="dialog-body">
+      <div class="dialog-head"><div><span class="eyebrow" id="dialogEyebrow">Lesson</span><h2 id="dialogTitle"></h2></div><button class="dialog-close" type="button" aria-label="Close">×</button></div>
+      <div id="dialogContent"></div>
+    </div>
+  </dialog>
 
   <script src="{{ url_for('static', filename='js/dashboard-pro.js') }}"></script>
   <script>
@@ -514,33 +599,149 @@
       }
 
       var progress = loadProgress();
+      var serverMeta = { xp: 0, streak: 0, certificate_ready: false };
+      var QUESTIONS = {
+        sql_injection:['Which defense best prevents SQL injection?',['Parameterized queries','Hiding database errors','Renaming the login page'],0,'Parameters keep user input separate from SQL instructions.'],
+        xss:['What is the primary XSS defense?',['Encode output for its HTML context','Disable browser cookies','Use longer URLs'],0,'Context-aware output encoding prevents input from becoming executable markup.'],
+        html_injection:['What makes HTML injection possible?',['Untrusted text rendered as HTML','A slow database','Encrypted traffic'],0,'Treat untrusted values as text, not HTML.'],
+        path_traversal:['What should file handlers enforce?',['An allowlisted base directory','A hidden filename','A custom HTTP header'],0,'Resolve the path and verify it remains inside the allowed directory.'],
+        idor:['What check prevents IDOR?',['Object-level authorization','Client-side validation','Random CSS classes'],0,'The server must verify access to every requested object.'],
+        csrf_scan:['What commonly blocks CSRF?',['Unpredictable CSRF tokens','Minified JavaScript','A robots.txt file'],0,'State-changing requests should require a token an attacker cannot know.'],
+        auth_scanner:['What protects login endpoints from guessing?',['Rate limits and secure sessions','Verbose errors','Public debug logs'],0,'Throttling and robust session handling reduce authentication abuse.'],
+        weak_password_scanner:['Which policy is strongest?',['Long passwords plus breached-password checks','One required digit','Monthly forced reuse'],0,'Length and breached-password screening are more useful than shallow complexity rules.'],
+        rate_limit:['Why rate-limit sensitive endpoints?',['To slow automated abuse','To change page colors','To compress responses'],0,'Rate limits constrain brute force, enumeration, and resource exhaustion.'],
+        clickjacking_scanner:['Which header mitigates clickjacking?',['Content-Security-Policy frame-ancestors','Accept-Language','ETag'],0,'frame-ancestors controls which sites may embed the page.'],
+        cors_scanner:['Which CORS combination is dangerous?',['Reflected origins with credentials','A fixed trusted origin','No CORS headers'],0,'Arbitrary credentialed origins can read private responses.'],
+        host_header_scanner:['What should generate trusted absolute links?',['A configured canonical origin','The raw Host header','The Referer header'],0,'Security links should use a server-controlled base URL.'],
+        open_redirect_scanner:['How should redirect targets be handled?',['Allowlist local destinations','Accept every URL','Base64-encode the target'],0,'Only known local destinations should be accepted.'],
+        dir_scan:['What reduces exposed files?',['Remove backups and deny directory listing','Rename index.html','Add more cookies'],0,'Deployment should exclude secrets, backups, and directory indexes.'],
+        info_scan:['What belongs in production errors?',['A generic message and server-side log ID','A full stack trace','Database credentials'],0,'Users get a safe message while details remain in protected logs.'],
+        websocket_scanner:['What must a WebSocket handshake verify?',['Origin and authorization','Screen resolution','Browser theme'],0,'WebSockets require the same authentication and origin controls as HTTP.'],
+        modern_spa_scanner:['Where should long-lived secrets be stored?',['Not in client-side bundles','Inside JavaScript comments','In localStorage for everyone'],0,'Anything shipped to the browser must be treated as public.']
+      };
+
+      function csrf() { return document.querySelector('meta[name="csrf-token"]').content; }
+      async function syncProgress(moduleId) {
+        var item = progress[moduleId] || {};
+        var response = await fetch('/api/learning/progress', {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf()},body:JSON.stringify({module_id:moduleId,watched:!!item.watched,quiz_score:item.quiz_score||0})});
+        if (response.ok) applyServerState(await response.json());
+      }
+      function applyServerState(data) {
+        serverMeta = data;
+        Object.keys(data.modules || {}).forEach(function (key) { progress[key] = data.modules[key]; });
+        saveProgress(progress);
+        document.getElementById('xpCount').textContent = (data.xp || 0) + ' XP';
+        document.getElementById('streakCount').textContent = (data.streak || 0) + ' 🔥';
+        var link = document.getElementById('certificateLink');
+        link.classList.toggle('locked', !data.certificate_ready);
+        link.textContent = data.certificate_ready ? '🏆 Download certificate' : '🔒 Complete the path';
+        cards.forEach(function (card) {
+          var item = progress[card.dataset.module] || {};
+          card.classList.toggle('done', !!item.watched);
+          var watchedButton = card.querySelector('.watch-toggle');
+          if (watchedButton) watchedButton.lastChild.textContent = item.watched ? 'Watched' : 'Mark watched';
+          var pass = card.querySelector('.quiz-pass');
+          if (pass) pass.textContent = item.quiz_score >= 70 ? 'Quiz passed ✓' : '';
+        });
+        renderProgress();
+      }
 
       function renderProgress() {
-        var done = cards.filter(function (c) { return !!progress[c.dataset.module]; }).length;
+        var done = cards.filter(function (c) { return !!(progress[c.dataset.module] || {}).watched; }).length;
         var pct = total ? Math.round((done / total) * 100) : 0;
         document.getElementById('progressFill').style.width = pct + '%';
         document.getElementById('progressFrac').textContent = done + ' / ' + total;
         document.getElementById('progressPct').textContent = pct + '%';
         document.getElementById('progressBig').textContent = pct + '%';
+        document.getElementById('remainingCount').textContent = total - done;
+        document.querySelector('.progress-ring-wrap').style.background =
+          'conic-gradient(var(--lc-study) ' + (pct * 3.6) + 'deg, rgba(255,255,255,.07) 0deg)';
+
+        cards.forEach(function (card) { card.classList.remove('next'); });
+        var next = cards.find(function (card) { return !(progress[card.dataset.module] || {}).watched; });
+        var continueButton = document.getElementById('continueLearning');
+        var copy = document.getElementById('nextLessonCopy');
+        var status = document.getElementById('journeyStatus');
+        if (next) {
+          next.classList.add('next');
+          continueButton.textContent = (done ? 'Continue' : 'Start first lesson') + ' →';
+          copy.textContent = 'Up next: ' + next.dataset.title + '. Keep your momentum with one short lesson, then mark it watched.';
+          status.textContent = done ? 'Great work — keep going' : 'Your guided learning path';
+          continueButton.onclick = function () {
+            next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var video = next.querySelector('video');
+            if (video) video.focus({ preventScroll: true });
+          };
+        } else {
+          continueButton.textContent = 'Path completed ✓';
+          continueButton.onclick = null;
+          copy.textContent = 'You completed the full beginner path. Revisit any lesson whenever you want a quick refresher.';
+          status.textContent = 'Fantastic — all stages complete!';
+        }
+
+        Array.prototype.slice.call(document.querySelectorAll('.stage')).forEach(function (stage) {
+          var stageCards = Array.prototype.slice.call(stage.querySelectorAll('.lesson-card'));
+          var stageDone = stageCards.filter(function (card) { return !!(progress[card.dataset.module] || {}).watched; }).length;
+          stage.querySelector('.stage-progress').textContent = stageDone + ' / ' + stageCards.length;
+        });
+        var badges = Array.prototype.slice.call(document.querySelectorAll('.stage')).filter(function (stage) {
+          var items = Array.prototype.slice.call(stage.querySelectorAll('.lesson-card'));
+          return items.length && items.every(function (card) { return !!(progress[card.dataset.module] || {}).watched; });
+        }).length;
+        document.getElementById('badgeCount').textContent = badges;
       }
 
       cards.forEach(function (card) {
         var mod = card.dataset.module;
         var btn = card.querySelector('.watch-toggle');
         function applyState() {
-          var isDone = !!progress[mod];
+          var isDone = !!(progress[mod] || {}).watched;
           card.classList.toggle('done', isDone);
           btn.lastChild.textContent = isDone ? 'Watched' : 'Mark watched';
+          var pass = card.querySelector('.quiz-pass');
+          if (pass) pass.textContent = (progress[mod] || {}).quiz_score >= 70 ? 'Quiz passed ✓' : '';
         }
         applyState();
         btn.addEventListener('click', function () {
-          progress[mod] = !progress[mod];
+          progress[mod] = progress[mod] || {};
+          progress[mod].watched = !progress[mod].watched;
           saveProgress(progress);
           applyState();
           renderProgress();
+          syncProgress(mod);
         });
       });
       renderProgress();
+
+      var dialog = document.getElementById('learningDialog');
+      var dialogTitle = document.getElementById('dialogTitle');
+      var dialogContent = document.getElementById('dialogContent');
+      var dialogEyebrow = document.getElementById('dialogEyebrow');
+      document.querySelector('.dialog-close').addEventListener('click', function(){ dialog.close(); });
+      dialog.addEventListener('click', function(event){ if(event.target === dialog) dialog.close(); });
+      function openPanel(card, type) {
+        var mod = card.dataset.module, title = card.dataset.title, q = QUESTIONS[mod];
+        dialogTitle.textContent = title;
+        if (type === 'details') {
+          dialogEyebrow.textContent = 'Vulnerability guide';
+          dialogContent.innerHTML = '<p class="muted">'+card.querySelector('p').textContent+'</p><div class="detail-grid"><div class="detail-box"><strong>WHY IT HAPPENS</strong><p>Untrusted data crosses a security boundary without the right validation, encoding, or authorization check.</p></div><div class="detail-box"><strong>HOW TO FIX IT</strong><p>'+q[3]+'</p></div><div class="detail-box"><strong>INSECURE PATTERN</strong><p><code>use(request.input) directly</code></p></div><div class="detail-box"><strong>SAFER PATTERN</strong><p><code>validate → authorize → encode</code></p></div></div><a class="scan-link" href="/dashboard?scanner='+encodeURIComponent(mod)+'">Try this scanner →</a>';
+        } else if (type === 'lab') {
+          dialogEyebrow.textContent = 'Safe practice lab';
+          dialogContent.innerHTML = '<p>Practice the idea without attacking a real target.</p><ol class="lab-steps"><li>Watch the lesson and write down the trust boundary.</li><li>Open the scanner with this module preselected.</li><li>Use only a local lab or a target you own.</li><li>Compare the finding with the recommended defense.</li></ol><a class="scan-link" href="/dashboard?scanner='+encodeURIComponent(mod)+'">Open safe scanner exercise →</a>';
+        } else {
+          dialogEyebrow.textContent = 'Knowledge check · +30 XP';
+          dialogContent.innerHTML = '<p>'+q[0]+'</p>'+q[1].map(function(option,index){return '<button class="quiz-option" data-answer="'+index+'">'+option+'</button>';}).join('')+'<div class="quiz-feedback" id="quizFeedback"></div>';
+          dialogContent.querySelectorAll('.quiz-option').forEach(function(option){ option.addEventListener('click',function(){ var correct=Number(option.dataset.answer)===q[2]; document.getElementById('quizFeedback').textContent=(correct?'Correct! ':'Not quite. ')+q[3]; if(correct){ progress[mod]=progress[mod]||{}; progress[mod].quiz_score=100; saveProgress(progress); syncProgress(mod); card.querySelector('.quiz-pass').textContent='Quiz passed ✓'; } }); });
+        }
+        dialog.showModal();
+      }
+      cards.forEach(function(card){
+        var actions=document.createElement('div'); actions.className='lesson-actions';
+        actions.innerHTML='<button class="lesson-action" data-panel="details">📖 Guide</button><button class="lesson-action" data-panel="quiz">✦ Quiz</button><button class="lesson-action" data-panel="lab">🧪 Lab</button>';
+        var pass=document.createElement('span'); pass.className='quiz-pass'; card.insertBefore(actions,card.querySelector('.lesson-foot')); card.querySelector('.lesson-foot').prepend(pass);
+        actions.addEventListener('click',function(event){ var button=event.target.closest('[data-panel]'); if(button) openPanel(card,button.dataset.panel); });
+      });
+      fetch('/api/learning/progress').then(function(response){return response.ok?response.json():null;}).then(function(data){if(data)applyServerState(data);});
 
       // Stage filter tabs
       var tabs = Array.prototype.slice.call(document.querySelectorAll('#stageTabs button'));
@@ -581,5 +782,6 @@
       search.addEventListener('input', applySearch);
     })();
   </script>
+  <script src="{{ url_for('static', filename='js/assistant.js') }}"></script>
 </body>
 </html>

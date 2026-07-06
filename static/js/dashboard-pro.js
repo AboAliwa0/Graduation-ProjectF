@@ -757,6 +757,13 @@
     renderAll();
     try {
       await loadScanners();
+      const learningScanner = new URLSearchParams(window.location.search).get('scanner');
+      if (learningScanner && state.scanners.some(scanner => scanner.id === learningScanner)) {
+        setScannerSelection([learningScanner]);
+        $('#scanMode').value = 'standard';
+        $('#scanModal').showModal();
+        window.history.replaceState({}, '', '/dashboard');
+      }
       await refreshDashboard({silent: true});
     } catch (error) {
       toast(error.message || 'Unable to initialize dashboard', 'error');

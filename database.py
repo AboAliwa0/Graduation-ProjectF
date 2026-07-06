@@ -126,10 +126,29 @@ def init_db() -> None:
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS learning_progress (
+            user_id INTEGER NOT NULL,
+            module_id TEXT NOT NULL,
+            watched INTEGER NOT NULL DEFAULT 0,
+            quiz_score INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, module_id),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_profiles (
+            user_id INTEGER PRIMARY KEY,
+            xp INTEGER NOT NULL DEFAULT 0,
+            streak INTEGER NOT NULL DEFAULT 0,
+            last_activity_date TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_scans_user_created ON scans(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
         CREATE INDEX IF NOT EXISTS idx_audit_user_created ON audit_logs(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_scopes_user_active ON target_scopes(user_id, is_active);
+        CREATE INDEX IF NOT EXISTS idx_learning_user ON learning_progress(user_id, updated_at DESC);
         """
     )
 
