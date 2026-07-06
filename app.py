@@ -207,7 +207,8 @@ def security_headers(response):
         "Content-Security-Policy",
         "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
-        "connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "connect-src 'self' ws: wss:; frame-src https://www.youtube-nocookie.com; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     )
     if session.get("user_id") or request.path.startswith(("/api/", "/scan-", "/login", "/register")):
         response.headers.setdefault("Cache-Control", "no-store, max-age=0")

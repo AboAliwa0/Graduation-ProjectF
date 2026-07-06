@@ -191,6 +191,7 @@
 
     .lesson-video{ position:relative; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:16/9; }
     .lesson-video video{ width:100%; height:100%; display:block; object-fit:cover; }
+    .lesson-video iframe{ width:100%; height:100%; display:block; border:0; }
 
     .lesson-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .module-id{ font-size:10.5px; color:var(--lc-faint); background:rgba(255,255,255,.05); border-radius:6px; padding:2px 6px; }
@@ -619,6 +620,38 @@
         websocket_scanner:['What must a WebSocket handshake verify?',['Origin and authorization','Screen resolution','Browser theme'],0,'WebSockets require the same authentication and origin controls as HTTP.'],
         modern_spa_scanner:['Where should long-lived secrets be stored?',['Not in client-side bundles','Inside JavaScript comments','In localStorage for everyone'],0,'Anything shipped to the browser must be treated as public.']
       };
+      var ARABIC_VIDEOS = {
+        sql_injection:'AKwgjcvGWwg',
+        xss:'TeIK1244sSk',
+        html_injection:'-pdIq0f5Pf0',
+        path_traversal:'FOVnU-ud4V0',
+        csrf_scan:'Vb4md5w6JJ8',
+        cors_scanner:'OcrmPMSjdSw',
+        host_header_scanner:'klBJDJ5s3XM',
+        info_scan:'V9Bc_Addfps',
+        idor:'b_EGEerEqvA',
+        auth_scanner:'b_EGEerEqvA',
+        weak_password_scanner:'b_EGEerEqvA',
+        rate_limit:'b_EGEerEqvA',
+        clickjacking_scanner:'b_EGEerEqvA',
+        open_redirect_scanner:'b_EGEerEqvA',
+        dir_scan:'b_EGEerEqvA',
+        websocket_scanner:'b_EGEerEqvA',
+        modern_spa_scanner:'b_EGEerEqvA'
+      };
+      cards.forEach(function(card){
+        var videoId=ARABIC_VIDEOS[card.dataset.module];
+        var holder=card.querySelector('.lesson-video');
+        if(videoId&&holder){
+          var frame=document.createElement('iframe');
+          frame.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(videoId)+'?rel=0&hl=ar';
+          frame.title='شرح عربي: '+card.dataset.title;
+          frame.loading='lazy';
+          frame.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+          frame.allowFullscreen=true;
+          holder.replaceChildren(frame);
+        }
+      });
 
       function csrf() { return document.querySelector('meta[name="csrf-token"]').content; }
       async function syncProgress(moduleId) {

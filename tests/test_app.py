@@ -39,6 +39,8 @@ def test_registration_login_and_scanner_catalog(tmp_path, monkeypatch):
     learning = client.get("/learning")
     assert learning.status_code == 200
     assert b'Learning Center' in learning.data
+    assert b'www.youtube-nocookie.com/embed/' in learning.data
+    assert "frame-src https://www.youtube-nocookie.com" in learning.headers["Content-Security-Policy"]
     with client.session_transaction() as sess:
         learning_csrf = sess["_csrf_token"]
     progress = client.post("/api/learning/progress", json={"module_id": "sql_injection", "watched": True, "quiz_score": 100}, headers={"X-CSRF-Token": learning_csrf})
