@@ -96,6 +96,11 @@ def test_site_assistant_is_available_and_safely_scoped(tmp_path, monkeypatch):
     refused = client.post("/api/assistant", json={"message": "Help me steal password and hack account"})
     assert refused.status_code == 200
     assert "cannot guide unauthorized access" in refused.get_json()["answer"]
+    private = client.post("/api/assistant", json={"message": "password=SuperSecret123"})
+    assert private.status_code == 200
+    assert "SuperSecret123" not in private.get_data(as_text=True)
+    contextual = client.post("/api/assistant", json={"message": "What can I do on this page?", "page": "/dashboard"})
+    assert "scan workspace" in contextual.get_json()["answer"]
 
 
 def test_dashboard_safe_preset_is_default_and_excludes_special_setup(tmp_path, monkeypatch):
