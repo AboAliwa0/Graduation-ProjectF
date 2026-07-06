@@ -153,6 +153,7 @@ MAX_ACTIVE_SCANS_PER_USER = int(os.getenv("MAX_ACTIVE_SCANS_PER_USER", "2"))
 DEFAULT_REQUEST_BUDGET = int(os.getenv("DEFAULT_REQUEST_BUDGET", "120"))
 MAX_REQUEST_BUDGET = int(os.getenv("MAX_REQUEST_BUDGET", "500"))
 FORBIDDEN_GLOBAL_HEADERS = {"host", "content-length", "transfer-encoding", "connection", "proxy-authorization"}
+USER_ROLES = {"student", "developer"}
 
 
 def csrf_token() -> str:
@@ -239,6 +240,21 @@ def password_error(password: str) -> str | None:
 def request_payload() -> dict:
     data = request.get_json(silent=True)
     return data if isinstance(data, dict) else request.form.to_dict()
+
+
+def requested_user_role(data) -> str | None:
+    role = str(data.get("role", "developer")).strip().lower()
+    return role if role in USER_ROLES else None
+
+
+def get_user(user_id: int):
+    conn = connect()
+    user = conn.execute(
+        "SELECT id,email,role,is_active,created_at,last_login_at FROM users WHERE id=?",
+        (user_id,),
+    ).fetchone()
+    conn.close()
+    return user
 
 
 def client_ip() -> str:
@@ -980,10 +996,13 @@ def register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
+        role = requested_user_role(request.form)
         if is_rate_limited("register", email):
             return "Too many registration attempts.", 429
         if not email or "@" not in email or len(email) > 254 or password != confirm:
             return "Valid email and matching passwords are required.", 400
+        if role is None:
+            return "Account type must be student or developer.", 400
         error = password_error(password)
         if error:
             return error, 400
@@ -991,11 +1010,11 @@ def register():
         if conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
             conn.close()
             return "Email already exists.", 409
-        cursor = conn.execute("INSERT INTO users (email,password) VALUES (?,?)", (email, bcrypt.generate_password_hash(password).decode()))
+        cursor = conn.execute("INSERT INTO users (email,password,role) VALUES (?,?,?)", (email, bcrypt.generate_password_hash(password).decode(), role))
         user_id = int(cursor.lastrowid)
         conn.commit()
         conn.close()
-        audit("auth.register", user_id=user_id, target_type="user", target_id=user_id, details={"email": email}, ip_address=client_ip())
+        audit("auth.register", user_id=user_id, target_type="user", target_id=user_id, details={"email": email, "role": role}, ip_address=client_ip())
         return redirect("/login")
     return render_template("register.html")
 
@@ -1037,7 +1056,24 @@ def logout():
 def dashboard():
     if not session.get("user_id"):
         return redirect("/login")
-    return render_template("dashboard.html")
+    current_user = get_user(int(session["user_id"]))
+    if not current_user or not current_user["is_active"]:
+        session.clear()
+        return redirect("/login")
+    return render_template("dashboard.html", current_user=current_user)
+
+
+@app.route("/learning")
+def learning():
+    if not session.get("user_id"):
+        return redirect("/login")
+    current_user = get_user(int(session["user_id"]))
+    if not current_user or not current_user["is_active"]:
+        session.clear()
+        return redirect("/login")
+    if current_user["role"] != "student":
+        return redirect("/dashboard")
+    return render_template("learning.html", current_user=current_user)
 
 
 @app.route("/history")
@@ -1178,21 +1214,24 @@ def api_register():
     data = request_payload()
     email = str(data.get("email", "")).strip().lower()
     password = str(data.get("password", ""))
+    role = requested_user_role(data)
     if is_rate_limited("api_register", email):
         return jsonify({"error": "Too many attempts"}), 429
     error = password_error(password)
     if not email or "@" not in email or len(email) > 254 or error:
         return jsonify({"error": error or "A valid email is required"}), 400
+    if role is None:
+        return jsonify({"error": "Account type must be student or developer"}), 400
     conn = connect()
     if conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
         conn.close()
         return jsonify({"error": "User exists"}), 409
-    cursor = conn.execute("INSERT INTO users (email,password) VALUES (?,?)", (email, bcrypt.generate_password_hash(password).decode()))
+    cursor = conn.execute("INSERT INTO users (email,password,role) VALUES (?,?,?)", (email, bcrypt.generate_password_hash(password).decode(), role))
     user_id = int(cursor.lastrowid)
     conn.commit()
     conn.close()
-    audit("auth.api_register", user_id=user_id, target_type="user", target_id=user_id, details={"email": email}, ip_address=client_ip())
-    return jsonify({"message": "Registered"}), 201
+    audit("auth.api_register", user_id=user_id, target_type="user", target_id=user_id, details={"email": email, "role": role}, ip_address=client_ip())
+    return jsonify({"message": "Registered", "user_id": user_id, "role": role}), 201
 
 
 @app.route("/api/login", methods=["POST"])
@@ -1208,9 +1247,20 @@ def api_login():
     if user and user["is_active"] and bcrypt.check_password_hash(user["password"], password):
         conn = connect(); conn.execute("UPDATE users SET last_login_at=? WHERE id=?", (utc_now(), user["id"])); conn.commit(); conn.close()
         audit("auth.api_login", user_id=int(user["id"]), target_type="user", target_id=user["id"], ip_address=client_ip())
-        return jsonify({"token": create_access_token(identity=str(user["id"])), "user_id": user["id"], "email": user["email"]})
+        return jsonify({"token": create_access_token(identity=str(user["id"])), "user_id": user["id"], "email": user["email"], "role": user["role"]})
     audit("auth.api_login_failed", target_type="user", target_id=email, ip_address=client_ip())
     return jsonify({"error": "Invalid credentials"}), 401
+
+
+@app.route("/api/me")
+def api_me():
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    user = get_user(user_id)
+    if not user or not user["is_active"]:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"id": user["id"], "email": user["email"], "role": user["role"]})
 
 
 @app.route("/api/scanners")

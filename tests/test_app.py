@@ -27,16 +27,41 @@ def test_registration_login_and_scanner_catalog(tmp_path, monkeypatch):
     app_module = _load_app(tmp_path, monkeypatch)
     client = app_module.app.test_client()
     token = _csrf(client, "/register")
-    response = client.post("/register", data={"email": "student@example.com", "password": "SecurePass123", "confirm_password": "SecurePass123", "csrf_token": token})
+    response = client.post("/register", data={"email": "student@example.com", "password": "SecurePass123", "confirm_password": "SecurePass123", "role": "student", "csrf_token": token})
     assert response.status_code == 302
     token = _csrf(client, "/login")
     response = client.post("/login", data={"email": "student@example.com", "password": "SecurePass123", "csrf_token": token})
     assert response.status_code == 302
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    assert b'data-user-role="student"' in dashboard.data
+    assert b'href="/learning"' in dashboard.data
+    learning = client.get("/learning")
+    assert learning.status_code == 200
+    assert b'Learning Center' in learning.data
+    profile = client.get("/api/me").get_json()
+    assert profile["role"] == "student"
     catalog = client.get("/api/scanners")
     assert catalog.status_code == 200
     payload = catalog.get_json()
     assert len(payload["scanners"]) == 26
     assert all("inputs" in item for item in payload["scanners"])
+
+
+def test_developer_registration_hides_learning_and_rejects_invalid_role(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    client = app_module.app.test_client()
+    token = _csrf(client, "/register")
+    invalid = client.post("/register", data={"email": "bad@example.com", "password": "SecurePass123", "confirm_password": "SecurePass123", "role": "admin", "csrf_token": token})
+    assert invalid.status_code == 400
+    token = _csrf(client, "/register")
+    assert client.post("/register", data={"email": "dev@example.com", "password": "SecurePass123", "confirm_password": "SecurePass123", "role": "developer", "csrf_token": token}).status_code == 302
+    token = _csrf(client, "/login")
+    client.post("/login", data={"email": "dev@example.com", "password": "SecurePass123", "csrf_token": token})
+    dashboard = client.get("/dashboard")
+    assert b'data-user-role="developer"' in dashboard.data
+    assert b'id="learningModal"' not in dashboard.data
+    assert client.get("/learning").status_code == 302
 
 
 def test_oast_script_route_allows_cross_origin_loading(tmp_path, monkeypatch):

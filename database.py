@@ -73,7 +73,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'analyst',
+            role TEXT NOT NULL DEFAULT 'developer',
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_login_at TEXT
@@ -138,10 +138,16 @@ def init_db() -> None:
         conn,
         "users",
         {
-            "role": "TEXT NOT NULL DEFAULT 'analyst'",
+            "role": "TEXT NOT NULL DEFAULT 'developer'",
             "is_active": "INTEGER NOT NULL DEFAULT 1",
             "last_login_at": "TEXT",
         },
+    )
+
+    # v3 used "analyst" as the role default. The application now has two
+    # explicit account types; existing scanner users map to developers.
+    conn.execute(
+        "UPDATE users SET role='developer' WHERE role IS NULL OR role NOT IN ('student','developer')"
     )
     _add_missing_columns(
         conn,
