@@ -18,9 +18,10 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, verify_jwt_in_request
 from flask_socketio import SocketIO, emit, join_room
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.pdfgen import canvas
 
 from database import audit, connect, init_db, utc_now
 from services.auth_profiles import AuthProfileError, parse_auth_profiles, parse_browser_storage_state
@@ -1326,6 +1327,40 @@ def api_learning_progress():
     })
 
 
+def build_learning_certificate_pdf(student_name: str, certificate_id: str) -> BytesIO:
+    buffer = BytesIO()
+    width, height = landscape(letter)
+    pdf = canvas.Canvas(buffer, pagesize=(width, height))
+    navy, panel = colors.HexColor("#07111F"), colors.HexColor("#0D1B2E")
+    cyan, green, gold = colors.HexColor("#22D3EE"), colors.HexColor("#34D399"), colors.HexColor("#F4B740")
+    text, muted = colors.HexColor("#E5EEFB"), colors.HexColor("#A8B5C7")
+    pdf.setFillColor(navy); pdf.rect(0, 0, width, height, fill=1, stroke=0)
+    pdf.setFillColor(panel); pdf.roundRect(28, 28, width - 56, height - 56, 22, fill=1, stroke=0)
+    pdf.setStrokeColor(cyan); pdf.setLineWidth(2); pdf.roundRect(38, 38, width - 76, height - 76, 18, fill=0, stroke=1)
+    pdf.setStrokeColor(gold); pdf.setLineWidth(.7); pdf.roundRect(47, 47, width - 94, height - 94, 14, fill=0, stroke=1)
+    pdf.setFillColor(cyan); pdf.rect(70, height - 94, 95, 4, fill=1, stroke=0)
+    pdf.setFillColor(green); pdf.rect(width - 165, height - 94, 95, 4, fill=1, stroke=0)
+    pdf.setFillColor(cyan); pdf.setFont("Helvetica-Bold", 13); pdf.drawCentredString(width / 2, height - 88, "CYBERSCAN PROFESSIONAL")
+    pdf.setFillColor(gold); pdf.setFont("Helvetica-Bold", 31); pdf.drawCentredString(width / 2, height - 148, "CERTIFICATE OF HONOR")
+    pdf.setFillColor(muted); pdf.setFont("Helvetica", 12); pdf.drawCentredString(width / 2, height - 179, "This certificate is proudly presented to")
+    name_size = 29 if len(student_name) <= 28 else max(18, 29 - (len(student_name) - 28) * .55)
+    pdf.setFillColor(text); pdf.setFont("Helvetica-Bold", name_size); pdf.drawCentredString(width / 2, height - 230, student_name)
+    pdf.setStrokeColor(gold); pdf.setLineWidth(1); pdf.line(width / 2 - 185, height - 242, width / 2 + 185, height - 242)
+    pdf.setFillColor(muted); pdf.setFont("Helvetica", 12)
+    pdf.drawCentredString(width / 2, height - 282, "In recognition of successfully completing the CyberScan Beginner Web Security Path")
+    pdf.drawCentredString(width / 2, height - 304, f"and mastering all {len(LEARNING_MODULES)} guided lessons, quizzes, and safe practice modules.")
+    pdf.setFillColor(cyan); pdf.circle(width / 2, 203, 39, fill=0, stroke=1)
+    pdf.setFillColor(gold); pdf.setFont("Helvetica-Bold", 20); pdf.drawCentredString(width / 2, 198, "CS")
+    pdf.setFillColor(muted); pdf.setFont("Helvetica", 9); pdf.drawCentredString(width / 2, 180, "VERIFIED")
+    pdf.setStrokeColor(colors.HexColor("#314158")); pdf.line(105, 124, 275, 124); pdf.line(width - 275, 124, width - 105, 124)
+    pdf.setFillColor(text); pdf.setFont("Helvetica-Bold", 10); pdf.drawCentredString(190, 108, date.today().isoformat())
+    pdf.drawCentredString(width - 190, 108, "CyberScan Learning Center")
+    pdf.setFillColor(muted); pdf.setFont("Helvetica", 8); pdf.drawCentredString(190, 94, "DATE OF ISSUE"); pdf.drawCentredString(width - 190, 94, "ISSUING AUTHORITY")
+    pdf.setFont("Helvetica", 7); pdf.drawCentredString(width / 2, 61, f"Certificate ID: {certificate_id}  |  CyberScan Professional 5.0")
+    pdf.showPage(); pdf.save(); buffer.seek(0)
+    return buffer
+
+
 @app.route("/learning/certificate")
 def learning_certificate():
     user_id, user = require_student_api()
@@ -1336,21 +1371,12 @@ def learning_certificate():
     conn.close()
     if completed != len(LEARNING_MODULES):
         return "Complete all learning modules before exporting your certificate.", 403
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=54, leftMargin=54, topMargin=60, bottomMargin=50)
-    styles = getSampleStyleSheet()
-    title = ParagraphStyle("CertificateTitle", parent=styles["Title"], fontSize=28, leading=34, textColor=colors.HexColor("#0891B2"), spaceAfter=22)
-    body = ParagraphStyle("CertificateBody", parent=styles["BodyText"], fontSize=14, leading=23, alignment=1, textColor=colors.HexColor("#334155"))
-    elements = [
-        Spacer(1, 40), Paragraph("CYBERSCAN LEARNING CENTER", title),
-        Paragraph("Certificate of Completion", styles["Heading1"]), Spacer(1, 24),
-        Paragraph("This certificate is proudly presented to", body), Spacer(1, 12),
-        Paragraph(escape(user["email"]), ParagraphStyle("Student", parent=title, fontSize=21, textColor=colors.HexColor("#0F172A"))),
-        Paragraph(f"for successfully completing all {len(LEARNING_MODULES)} modules in the beginner web security learning path.", body),
-        Spacer(1, 34), Paragraph(f"Issued {date.today().isoformat()} | CyberScan Professional 5.0", body),
-    ]
-    doc.build(elements); buffer.seek(0)
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="cyberscan-learning-certificate.pdf")
+    student_name = " ".join(request.args.get("name", "").split())
+    if not 2 <= len(student_name) <= 80 or not any(character.isalpha() for character in student_name):
+        return "Enter a valid student name between 2 and 80 characters.", 400
+    safe_name = re.sub(r"[^\w\- ]+", "", student_name, flags=re.UNICODE).strip() or "student"
+    certificate_id = f"CS-{user_id:05d}-{date.today().strftime('%Y%m%d')}"
+    return send_file(build_learning_certificate_pdf(student_name, certificate_id), mimetype="application/pdf", as_attachment=True, download_name=f"cyberscan-certificate-{safe_name[:40].replace(' ', '-')}.pdf")
 
 
 @app.route("/api/scanners")
